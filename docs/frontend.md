@@ -17,7 +17,9 @@ index.astro → Base.astro (fonts, global CSS, keyframes, hover classes)
     │                           (polls /admin/stats/recent at 1.5s)
     ├── screens/Endpoints.tsx   endpoint cards, test, set-active, inline
     │                           terminal for interactive tunnel connect,
-    │                           saved tunnel routes, ~/.ssh/config host picker
+    │                           saved tunnel routes, ~/.ssh/config host picker;
+    │                           "managed · <owner>" badge + edit notice for
+    │                           registered endpoints (links meta.manager_url)
     ├── screens/EndpointForm.tsx  the shared add/edit form: name, type,
     │                           alias, url, key, model allowlist; derives
     │                           `protocol` from the type select

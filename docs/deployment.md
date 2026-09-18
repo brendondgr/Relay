@@ -162,6 +162,22 @@ The endpoint registry lives in SQLite, not in code. Registered endpoints
 are reloaded at startup, so relay comes back knowing where each alias points —
 but tunnel-backed endpoints stay disconnected until you connect them.
 
+### Local model servers: lcpp
+
+The llama.cpp servers on this machine are started and stopped by lcpp
+(`~/Models/LLMs`, UI and API on `127.0.0.1:7700`), not by relay. lcpp
+publishes each one here as it becomes ready, through
+`PUT /admin/registrations/lcpp:<port>`, and removes it when it stops. On its
+own start it lists `GET /admin/registrations?owner=lcpp` and removes any
+registration whose server is gone. So after a reboot, relay still lists
+nothing stale even though lcpp loads no models at boot.
+
+Those endpoints carry a **managed · lcpp** badge on the Endpoints screen.
+Edits made here last until lcpp next registers them; manage them from lcpp.
+A hand-added endpoint whose URL lcpp later registers (the old
+`llama.cpp · local` on `:7070`) is adopted, not duplicated. It keeps its id,
+alias and request history.
+
 ## Security posture
 
 **relay has no authentication.** Not on `/v1`, not on `/admin`. Anyone who can

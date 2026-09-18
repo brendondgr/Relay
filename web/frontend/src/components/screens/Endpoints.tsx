@@ -24,6 +24,26 @@ interface TestEntry {
   result: EndpointTestResult | null;
 }
 
+/** The owner's UI, when its registration carried one (lcpp sends manager_url). */
+const managerUrl = (e: EndpointOut): string | null => {
+  const url = e.meta?.manager_url;
+  return typeof url === 'string' && /^https?:\/\//.test(url) ? url : null;
+};
+
+/** Marks an endpoint another program registered (and will re-register). */
+function ManagedBadge({ owner, managerUrl }: { owner: string; managerUrl: string | null }): React.JSX.Element {
+  const title = `registered by ${owner} — it adds and removes this endpoint itself`;
+  const label = `managed · ${owner}`;
+  return managerUrl ? (
+    <a href={managerUrl} target="_blank" rel="noopener" title={`${title}; open ${owner}`}
+       style={{ ...badge(C.purple), textDecoration: 'none', whiteSpace: 'nowrap' }}>
+      {label} ↗
+    </a>
+  ) : (
+    <span style={{ ...badge(C.purple), whiteSpace: 'nowrap' }} title={title}>{label}</span>
+  );
+}
+
 export default function Endpoints(props: EndpointsProps): React.JSX.Element {
   const { endpoints, swapping, onActivate, refresh } = props;
 
@@ -466,6 +486,9 @@ export default function Endpoints(props: EndpointsProps): React.JSX.Element {
                       model:{e.alias}
                     </span>
                   )}
+                  {e.owner && (
+                    <ManagedBadge owner={e.owner} managerUrl={managerUrl(e)} />
+                  )}
                   {e.protocol !== 'openai' && (
                     <span style={badge(C.purple)} title="agent protocol — reachable only by name, never via &quot;auto&quot; or failover">
                       alias-only
@@ -678,6 +701,16 @@ export default function Endpoints(props: EndpointsProps): React.JSX.Element {
                 display: 'flex', flexDirection: 'column', gap: 10,
                 background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: 12,
               }}>
+                {e.owner && (
+                  <div style={{ font: `400 11.5px ${SANS}`, color: C.textMut }}>
+                    Registered by <span style={{ color: C.purple }}>{e.owner}</span>
+                    {e.external_key && <> as <span style={{ font: `400 11px ${MONO}` }}>{e.external_key}</span></>}.
+                    {' '}Its name, URL, alias and model list are set again whenever {e.owner} re-registers it;
+                    manage it from {managerUrl(e)
+                      ? <a href={managerUrl(e)!} target="_blank" rel="noopener" style={{ color: C.cyan }}>{e.owner}</a>
+                      : e.owner} instead.
+                  </div>
+                )}
                 <EndpointForm
                   values={editForm}
                   onChange={patchEditForm}
