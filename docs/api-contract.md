@@ -57,7 +57,9 @@ All stats endpoints also accept optional `endpoint_id` and `model` filters.
   "model": "gemma-4-26B-it", "model_override": null,
   "health": "healthy|degraded|failed|unknown",
   "ewma_latency_ms": 42.1, "last_ok_ts": 1780000000.0,
-  "consecutive_fails": 0, "active": true, "share": 0.46
+  "consecutive_fails": 0, "active": true, "share": 0.46,
+  "owner": "lcpp", "external_key": "lcpp:7071",
+  "meta": {"manager_url": "http://127.0.0.1:7700/"}
 }
 ```
 
@@ -72,6 +74,41 @@ field any backend code branches on — `server_type` remains a cosmetic badge
 and `kind` is topology, re-derived on every PATCH. Endpoints whose `protocol`
 is not `openai` are **alias-only**: never resolved for `model: "auto"`, never
 a failover target, never the default pin. See [opencode.md](opencode.md).
+
+`owner`, `external_key` and `meta` are null for endpoints added by hand and
+set for ones another program registered (see Registration below).
+
+### Registration
+
+`PUT /admin/registrations/{key}` makes an endpoint exist, idempotently, for a
+program that starts and stops servers on its own (lcpp in `~/Models/LLMs`
+publishes each llama.cpp server as `lcpp:<port>`). Body:
+
+```json
+{
+  "name": "minicpm5-2b-7071", "port": 7071, "host": "127.0.0.1",
+  "alias": "MiniCPM5-2B", "available_models": ["minicpm-5-2B"],
+  "server_type": "llama.cpp", "owner": "lcpp",
+  "meta": {"manager_url": "http://127.0.0.1:7700/"}
+}
+```
+
+Give `port` (URL becomes `http://host:port/v1`) or a full `base_url`.
+Response:
+
+```json
+{"key": "lcpp:7071", "owner": "lcpp", "adopted": false,
+ "skipped_models": [], "endpoint": { /* Endpoint */ }}
+```
+
+- Matching: the row holding `key`; else an **unowned** row with the same
+  `base_url` is adopted (`adopted: true`), keeping its id (so telemetry
+  history), name and alias; else a new row.
+- `available_models` entries another endpoint already routes are dropped and
+  listed in `skipped_models`. An `alias` collision is a `409`.
+- The endpoint is probed before the response returns.
+- `DELETE /admin/registrations/{key}` is `204` whether or not the key existed.
+- `GET /admin/registrations?owner=lcpp` lists one owner's registrations.
 
 ### Model allowlist (`available_models`)
 

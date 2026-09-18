@@ -222,6 +222,16 @@ class Database:
         if "available_models" not in cols:
             self._conn.execute(
                 "ALTER TABLE endpoints ADD COLUMN available_models TEXT")
+        # Registrations (services/registrations.py): endpoints another program
+        # registers and removes by a stable key, e.g. lcpp's "lcpp:7071".
+        # owner scopes cleanup to that program's own rows; meta is its JSON
+        # blob (e.g. {"manager_url": ...}) shown by the dashboard.
+        for col in ("owner", "external_key", "meta"):
+            if col not in cols:
+                self._conn.execute(f"ALTER TABLE endpoints ADD COLUMN {col} TEXT")
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_endpoints_external_key"
+            " ON endpoints(external_key) WHERE external_key IS NOT NULL")
         # Backfill: an endpoint that already had a tunnel_command before
         # routes existed becomes its own "default" route, so upgrades don't
         # lose the working ssh command.

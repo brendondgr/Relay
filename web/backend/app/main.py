@@ -19,6 +19,7 @@ from app.core.logging import get_logger, setup_logging
 from app.db import Database
 from app.routes import (
     admin_endpoints,
+    admin_registrations,
     admin_settings,
     admin_stats,
     admin_tunnels,
@@ -187,6 +188,7 @@ def create_app(cfg: Config | None = None,
     app.include_router(admin_settings.router)
     app.include_router(admin_stats.router)
     app.include_router(admin_tunnels.router)
+    app.include_router(admin_registrations.router)
 
     _mount_static_dashboard(app, cfg)
     return app

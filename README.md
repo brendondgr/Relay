@@ -46,6 +46,12 @@ slower, which I could not see before.
   registered automatically at boot; relay translates OpenAI chat requests into
   agent sessions, and every free model the server offers is individually
   addressable. See [docs/opencode.md](docs/opencode.md).
+- **Registrations** — a program that starts model servers on its own can
+  publish and withdraw them idempotently by key (`PUT/DELETE
+  /admin/registrations/{key}`). [lcpp](https://github.com/brendondgr/LLMs),
+  the llama.cpp launcher on the same machine, registers each server it starts
+  as `lcpp:<port>`. Those endpoints are marked *managed* on the Endpoints
+  screen. See [deployment.md](docs/deployment.md).
 - **Dashboard** — Astro + React + ECharts, fed by an ECharts-shaped stats API
   (`dimensions`/`source` payloads) backed by hourly rollups.
 
@@ -134,7 +140,7 @@ root/
 │       │   └── hooks/       # usePoll
 │       ├── astro.config.mjs
 │       └── package.json
-├── tests/backend/           # pytest suite (163 tests, fake upstreams)
+├── tests/backend/           # pytest suite (170 tests, fake upstreams)
 ├── utils/                   # seed_telemetry.py, stub_upstream.py, stresstest.py
 ├── scripts/                 # dev/launch wrappers, systemd install, stress + live checks
 └── deploy/systemd/          # relay.service + opencode.service (user units)
