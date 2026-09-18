@@ -59,7 +59,7 @@ All stats endpoints also accept optional `endpoint_id` and `model` filters.
   "ewma_latency_ms": 42.1, "last_ok_ts": 1780000000.0,
   "consecutive_fails": 0, "active": true, "share": 0.46,
   "owner": "lcpp", "external_key": "lcpp:7071",
-  "meta": {"manager_url": "http://127.0.0.1:7700/"}
+  "meta": {"manager_url": "http://127.0.0.1:7710/"}
 }
 ```
 
@@ -89,7 +89,7 @@ publishes each llama.cpp server as `lcpp:<port>`). Body:
   "name": "minicpm5-2b-7071", "port": 7071, "host": "127.0.0.1",
   "alias": "MiniCPM5-2B", "available_models": ["minicpm-5-2B"],
   "server_type": "llama.cpp", "owner": "lcpp",
-  "meta": {"manager_url": "http://127.0.0.1:7700/"}
+  "meta": {"manager_url": "http://127.0.0.1:7710/"}
 }
 ```
 

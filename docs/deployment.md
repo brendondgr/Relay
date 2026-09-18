@@ -165,7 +165,7 @@ but tunnel-backed endpoints stay disconnected until you connect them.
 ### Local model servers: lcpp
 
 The llama.cpp servers on this machine are started and stopped by lcpp
-(`~/Models/LLMs`, UI and API on `127.0.0.1:7700`), not by relay. lcpp
+(`~/Models/LLMs`, UI and API on `127.0.0.1:7710`), not by relay. lcpp
 publishes each one here as it becomes ready, through
 `PUT /admin/registrations/lcpp:<port>`, and removes it when it stops. On its
 own start it lists `GET /admin/registrations?owner=lcpp` and removes any

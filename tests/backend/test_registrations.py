@@ -13,7 +13,7 @@ def _put(client, key, **body):
 def test_upsert_by_port_is_idempotent(client):
     r = _put(client, "lcpp:7071", name="minicpm-7071", port=1, alias="mini",
              available_models=["minicpm-5-2B", "MiniCPM5-2B"], owner="lcpp",
-             meta={"manager_url": "http://127.0.0.1:7700/"})
+             meta={"manager_url": "http://127.0.0.1:7710/"})
     assert r.status_code == 200, r.text
     reg = r.json()
     ep = reg["endpoint"]
@@ -21,7 +21,7 @@ def test_upsert_by_port_is_idempotent(client):
     assert ep["base_url"] == "http://127.0.0.1:1/v1" and ep["alias"] == "mini"
     assert ep["server_type"] == "llama.cpp" and ep["kind"] == "local"
     assert ep["owner"] == "lcpp" and ep["external_key"] == "lcpp:7071"
-    assert ep["meta"] == {"manager_url": "http://127.0.0.1:7700/"}
+    assert ep["meta"] == {"manager_url": "http://127.0.0.1:7710/"}
     assert ep["available_models"] == ["minicpm-5-2B", "MiniCPM5-2B"]
 
     again = _put(client, "lcpp:7071", name="renamed", port=1, alias="mini", owner="lcpp").json()
