@@ -67,6 +67,17 @@ No `/admin/*` route is authenticated — there is no admin plane. See
 | POST | `/admin/endpoints/{eid}/routes/{rid}/activate` | copy onto the endpoint → `EndpointOut` |
 | POST | `/admin/endpoints/{eid}/routes/{rid}/test` | quick probe without opening a tunnel |
 
+### Registrations — `app/routes/admin_registrations.py`
+
+Idempotent, owner-scoped endpoints for programs that start servers on their
+own (lcpp). See `services/registrations.py` for matching and adoption.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/admin/registrations?owner=…` | registrations, optionally one owner's |
+| PUT | `/admin/registrations/{key}` | upsert by key → `RegistrationOut`; adopts an unowned endpoint with the same URL; 409 on alias clash |
+| DELETE | `/admin/registrations/{key}` | remove → 204, also when already gone |
+
 ### SSH config
 
 | Method | Path | Notes |

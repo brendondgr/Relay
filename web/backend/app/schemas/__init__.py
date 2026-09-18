@@ -79,6 +79,40 @@ class EndpointOut(BaseModel):
     consecutive_fails: int = 0
     active: bool = False
     share: float = 0.0
+    # Set when another program registered this endpoint (see Registration*).
+    owner: str | None = None
+    external_key: str | None = None
+    meta: dict | None = None
+
+
+# ---- registrations ---------------------------------------------------
+class RegistrationUpsert(BaseModel):
+    """PUT /admin/registrations/{key}: make an endpoint exist, idempotently.
+
+    Give ``port`` for a server on this machine (``host`` defaults to
+    127.0.0.1 and the URL becomes ``http://host:port/v1``), or a full
+    ``base_url``.
+    """
+    name: str = Field(min_length=1, max_length=120)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    host: str = Field(default="127.0.0.1", max_length=253)
+    base_url: str | None = None
+    alias: str | None = Field(default=None, max_length=64)
+    available_models: list[str] = Field(default_factory=list, max_length=200)
+    server_type: ServerType = "llama.cpp"
+    owner: str = Field(default="external", min_length=1, max_length=64)
+    meta: dict = Field(default_factory=dict)
+
+
+class RegistrationOut(BaseModel):
+    key: str
+    owner: str | None
+    # True when the key matched no row and an unowned endpoint with the same
+    # base_url was taken over (its id, name, alias and history are kept).
+    adopted: bool = False
+    # Requested model ids another endpoint already serves; not advertised.
+    skipped_models: list[str] = []
+    endpoint: EndpointOut
 
 
 class TunnelRouteCreate(BaseModel):

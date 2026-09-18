@@ -57,6 +57,16 @@ def parse_models(value) -> list[str]:
     return []
 
 
+def _meta(value) -> dict | None:
+    if not value:
+        return None
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def _models_json(models: list[str]) -> str | None:
     """Storage form: a JSON array, or NULL when the allowlist is empty."""
     return json.dumps(models) if models else None
@@ -332,6 +342,39 @@ class Router:
             self._apply_allowlist(eid)  # take effect now, not next probe
         log.info("endpoint updated", extra={"data": {"id": eid, **changes}})
         return row
+
+    # ---- registrations -----------------------------------------------------
+    def find_by_key(self, key: str) -> dict | None:
+        return next((r for r in self.endpoints.values()
+                     if r.get("external_key") == key), None)
+
+    def find_unowned_by_url(self, base_url: str) -> dict | None:
+        url = base_url.rstrip("/")
+        return next((r for r in self.endpoints.values()
+                     if not r.get("external_key") and not r.get("owner")
+                     and r["base_url"].rstrip("/") == url), None)
+
+    def conflicting_models(self, models: list[str],
+                           exclude_id: str | None = None) -> set[str]:
+        """Lower-cased ids from ``models`` that another endpoint already
+        routes, as an alias or in its allowlist."""
+        taken: set[str] = set()
+        for eid, row in self.endpoints.items():
+            if eid == exclude_id:
+                continue
+            if row.get("alias"):
+                taken.add(row["alias"].lower())
+            taken.update(m.lower() for m in parse_models(row.get("available_models")))
+        return {m.lower() for m in models} & taken
+
+    def set_ownership(self, eid: str, owner: str | None, key: str | None,
+                      meta: dict | None) -> None:
+        row = self.endpoints[eid]
+        row["owner"], row["external_key"] = owner, key
+        row["meta"] = json.dumps(meta) if meta else None
+        self.db.execute(
+            "UPDATE endpoints SET owner = ?, external_key = ?, meta = ? WHERE id = ?",
+            (row["owner"], row["external_key"], row["meta"], eid))
 
     def delete(self, eid: str) -> bool:
         if eid not in self.endpoints:
@@ -655,7 +698,9 @@ class Router:
             ewma_latency_ms=(
                 round(st.ewma_latency_ms, 1) if st.ewma_latency_ms else None),
             last_ok_ts=st.last_ok_ts, consecutive_fails=st.consecutive_fails,
-            active=(row["id"] == self.pinned_id), share=round(share, 4))
+            active=(row["id"] == self.pinned_id), share=round(share, 4),
+            owner=row.get("owner"), external_key=row.get("external_key"),
+            meta=_meta(row.get("meta")))
 
     def list_out(self, shares: dict[str, float] | None = None) -> list[EndpointOut]:
         shares = shares or {}

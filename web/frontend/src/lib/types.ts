@@ -30,6 +30,20 @@ export interface EndpointOut {
   consecutive_fails: number;
   active: boolean;
   share: number;
+  /** Set when another program registered this endpoint via
+   * PUT /admin/registrations/{key} (e.g. "lcpp"); null for hand-added ones. */
+  owner: string | null;
+  external_key: string | null;
+  /** The owner's own data, e.g. { manager_url } for lcpp. */
+  meta: Record<string, unknown> | null;
+}
+
+export interface RegistrationOut {
+  key: string;
+  owner: string | null;
+  adopted: boolean;
+  skipped_models: string[];
+  endpoint: EndpointOut;
 }
 
 export interface EndpointTestResult {

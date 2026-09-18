@@ -7,9 +7,11 @@ Description=DashLLM relay - OpenAI-compatible LLM proxy + dashboard
 # relay comes up on boot and serves the dashboard + proxy. It does NOT connect
 # any SSH tunnel on its own: tunnel-backed endpoints (e.g. skynet) are connected
 # manually from the Endpoints screen, where prompts are answered interactively.
-# We only order after the local model server so its endpoint is reachable
-# quickly; relay tolerates a down endpoint via health probes + failover.
-After=network-online.target llamacpp-router.service
+# Local model servers are started on demand by lcpp (~/Models/LLMs), which
+# registers each one here over /admin/registrations and retries until relay
+# answers, so neither service waits for the other; ordering after lcpp.service
+# only makes a boot-time reconcile land sooner.
+After=network-online.target lcpp.service
 Wants=network-online.target
 # Bring the OpenCode agent server up with relay, and (via its PartOf=) take it
 # down with relay. Wants= not Requires=: a missing or misconfigured agent
