@@ -149,6 +149,14 @@ backend changes and `npm run build` + `relay restart` picks up frontend ones.
   from needing a change. Non-`openai` protocols are alias-only — `_eligible`,
   the manual pin, and the first-endpoint auto-pin in `router.py` all exclude
   them, and there are tests asserting each.
+- **Registrations are owned by their caller, not the dashboard.**
+  `services/registrations.py` upserts by `external_key`. Failing that, it
+  *adopts* an unowned endpoint with the same `base_url`, keeping its id (so
+  telemetry), name and alias. Model ids another endpoint already routes are
+  skipped, not fatal. `DELETE` is 204 even when the key is gone, because
+  callers (lcpp) retry blindly after crashes. Don't add a guard that makes
+  either call non-idempotent. `owner`/`external_key`/`meta` are set by
+  `Router.set_ownership`, deliberately outside `create`'s positional INSERT.
 - **`Router.create` inserts positionally.** Its `row` dict key order must
   match the explicit column list in the INSERT right below it.
 - **Nothing runtime-configurable belongs in a systemd unit file.** Both units
@@ -176,7 +184,7 @@ nothing touches the real DB, logs, or `.env`):
 
 ## Testing
 
-163 tests in `tests/backend/`, all against fake upstream ASGI apps
+170 tests in `tests/backend/`, all against fake upstream ASGI apps
 (`fake_upstream.py`, routed by hostname: `good` / `strict` / `opencode` /
 `flaky` / dead) — no real model server, agent server, or SSH host required.
 Tunnel lifecycle is tested with an injectable fake command, since real SSH
