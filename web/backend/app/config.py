@@ -22,10 +22,10 @@ class Config(BaseSettings):
         env_prefix="RELAY_", env_file=ENV_FILE, extra="ignore"
     )
 
-    # Reachable from the network by default: the point of this relay is to be
-    # an endpoint other machines can call. Set RELAY_HOST=127.0.0.1 to keep it
-    # on this host only. There is no auth layer — see docs/deployment.md.
-    host: str = "0.0.0.0"
+    # This machine only by default: there is no auth layer, and an OpenCode
+    # endpoint behind relay runs shell commands for whoever calls it. Set
+    # RELAY_HOST=0.0.0.0 to serve other machines — see docs/deployment.md.
+    host: str = "127.0.0.1"
     port: int = 4000
 
     db_path: Path = BACKEND_DIR / "data" / "relay.db"

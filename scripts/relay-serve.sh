@@ -19,5 +19,5 @@ fi
 
 cd "$ROOT/web/backend"
 exec /usr/bin/uv run uvicorn app.main:app \
-  --host "${RELAY_HOST:-0.0.0.0}" \
+  --host "${RELAY_HOST:-127.0.0.1}" \
   --port "${RELAY_PORT:-4000}"

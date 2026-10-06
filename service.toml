@@ -1,0 +1,52 @@
+# LLM Relay: DashLLM, moved in from ~/Tools/DashLLM (plan Phase 9). An OpenAI-compatible proxy on
+# :4000 with routing, SSH tunnels and usage analytics. Fields: architecture §4.3. Secrets and the
+# OpenCode settings stay in .env (gitignored), which relay's own config also reads.
+id = "relay"
+name = "LLM Relay"
+description = "OpenAI-compatible LLM relay with routing, tunnels and usage analytics"
+icon = "relay"
+version = "0.4.2"
+
+[run]
+command = ["web/backend/.venv/bin/uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "{port}"]
+cwd = "web/backend"
+port = 4000
+health = "/health"
+status = "/admin/status"
+openapi = "/openapi.json"
+env_file = ".env"
+start_timeout_s = 30
+stop_timeout_s = 30
+restart = "on-failure"
+after = ["opencode"]
+install = "aihub-install.sh"
+
+[run.env]
+RELAY_HOST = "127.0.0.1"
+RELAY_PORT = "{port}"
+RELAY_DB_PATH = "{databases}/relay.db"
+RELAY_LOG_DIR = "{service_dir}/web/backend/logs"
+OPENCODE_AUTH_FILE = "{root}/services/opencode/opencode-auth.env"
+
+[ui]
+# page = "ui/page.js"            # the Relay page (plan 9.7)
+native = "/"
+
+[[ui.widgets]]
+id = "traffic"
+title = "LLM traffic"
+kind = "bar"
+source = "GET /admin/hub/widgets/traffic"
+ranges = ["24h", "7d"]
+span = 6
+
+[api]
+hide = ["GET /", "GET /assets/*", "GET /_astro/*", "GET /admin/hub/*"]
+
+[api.responses]
+"POST /v1/chat/completions" = "stream"
+"POST /v1/completions" = "stream"
+
+[tools]
+relay_stats = { op = "GET /admin/stats/summary", description = "Requests, tokens, latency and error rate over a window (1h, 24h, 7d, 30d)" }
+list_endpoints = { op = "GET /admin/endpoints", description = "The relay's upstream endpoints with health and routing share" }
