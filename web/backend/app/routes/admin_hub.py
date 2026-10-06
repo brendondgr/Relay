@@ -29,7 +29,9 @@ async def status(request: Request):
         "stats": [
             {"label": "Requests today", "value": today["requests"], "reset": "daily"},
             {"label": "Tokens today", "value": today["total_tokens"] or 0, "reset": "daily"},
-            {"label": "p50 TTFT", "value": day["ttft_ms"]["p50"], "unit": "ms"},
+            # No requests in 24 h means no p50; a stat value can't be null (architecture §4.6).
+            {"label": "p50 TTFT", "value": day["ttft_ms"]["p50"], "unit": "ms"} if day["ttft_ms"]["p50"] is not None
+            else {"label": "p50 TTFT", "value": "–", "hint": "no requests in 24 h"},
             {"label": "Endpoints", "value": f"{healthy}/{len(rows)}", "hint": "healthy"},
         ],
     }

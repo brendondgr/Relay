@@ -19,6 +19,12 @@ def test_status_has_the_aihub_shape(client, app):
     assert st["Endpoints"]["value"] == "0/0"
 
 
+def test_status_without_requests_has_no_null_stat(client):
+    st = {x["label"]: x for x in client.get("/admin/status").json()["stats"]}
+    assert all(x["value"] is not None for x in st.values())
+    assert st["p50 TTFT"]["value"] == "–"
+
+
 def test_traffic_widget_is_widget_data(client, app):
     _seed(app.state.db, time.time() - 60, tin=40, tout=60, ttft=90)
     for rng in ("24h", "7d"):
