@@ -282,3 +282,10 @@ reach the port. No API key, no admin token, no accounts, no sessions.
   (`adapters/opencode.py::is_free_model`). That caps spend. It does **not**
   cap what an agent turn can do on the host it runs on — see
   [deployment.md](deployment.md).
+
+## AIHub routes
+
+Added when the relay moved into AIHub (`services/relay`, AIHub plan Phase 9); `app/routes/admin_hub.py`. Both work without AIHub too.
+
+- `GET /admin/status` → `{loaded: null, busy, stats}`: AIHub's status shape (its architecture §4.6). `stats` is "Requests today" and "Tokens today" (`reset: "daily"`, from local midnight), "p50 TTFT" over 24 h (`null` when no streamed request had a first token), and "Endpoints" as `"healthy/enabled"`. `busy` is any request in flight.
+- `GET /admin/hub/widgets/traffic?range=24h|7d` → AIHub `WidgetData`: `t` (unix seconds per bucket), series `Requests`, `Tokens` (right axis) and `p50 TTFT (ms)` (right axis). Any other range is 422.

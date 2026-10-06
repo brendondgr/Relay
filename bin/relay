@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# relay - the DashLLM relay under AIHub: start/stop/restart/logs go through `aihub`, for both the
+# relay and the OpenCode agent server it routes to (the old relay.service / opencode.service pair).
+#
+#   relay start | stop | restart | status | logs [-f] | open     (--relay-only: leave opencode alone)
+set -euo pipefail
+ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+AIHUB="$ROOT/../../bin/aihub"
+mods=(opencode relay)
+args=()
+for a in "$@"; do [[ "$a" == --relay-only ]] && mods=(relay) || args+=("$a"); done
+cmd="${args[0]:-status}"
+case "$cmd" in
+  start) for m in "${mods[@]}"; do "$AIHUB" start "$m"; done ;;
+  stop) "$AIHUB" stop relay; [[ ${#mods[@]} -gt 1 ]] && "$AIHUB" stop opencode || true ;;
+  restart) for m in "${mods[@]}"; do "$AIHUB" restart "$m"; done ;;
+  status) "$AIHUB" status | awk 'NR == 1 || $1 == "MOD" || $1 == "relay" || $1 == "opencode"' ;;
+  logs) "$AIHUB" logs relay "${args[@]:1}" ;;
+  open) exec "$AIHUB" open "#/s/relay" ;;
+  -h|--help|help) sed -n '2,5p' "$0" ;;
+  *) echo "relay: unknown command $cmd (start|stop|restart|status|logs|open)" >&2; exit 2 ;;
+esac

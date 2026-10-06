@@ -29,7 +29,7 @@ RELAY_LOG_DIR = "{service_dir}/web/backend/logs"
 OPENCODE_AUTH_FILE = "{root}/services/opencode/opencode-auth.env"
 
 [ui]
-# page = "ui/page.js"            # the Relay page (plan 9.7)
+page = "ui/page.js"
 native = "/"
 
 [[ui.widgets]]
