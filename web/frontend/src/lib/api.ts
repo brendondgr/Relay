@@ -7,6 +7,8 @@ import type {
   EndpointOut,
   EndpointTestResult,
   LiveSnapshot,
+  ModelFactsOut,
+  ModelFactsOverride,
   ProxyInfoOut,
   RangeSel,
   RecentResponse,
@@ -63,6 +65,7 @@ export const api = {
     upstream_key?: string | null; priority?: number;
     alias?: string | null; model_override?: string | null;
     tunnel_command?: string | null; tunnel_local_port?: number | null;
+    facts_override?: Partial<ModelFactsOverride> | null;
   }) => req<EndpointOut>('POST', '/admin/endpoints', body),
   patchEndpoint: (id: string, body: Record<string, unknown>) =>
     req<EndpointOut>('PATCH', `/admin/endpoints/${id}`, body),
@@ -72,6 +75,8 @@ export const api = {
     req<RouterState>('POST', `/admin/endpoints/${id}/activate`),
   testEndpoint: (id: string) =>
     req<EndpointTestResult>('POST', `/admin/endpoints/${id}/test`),
+  endpointFacts: (id: string, refresh = false) =>
+    get<ModelFactsOut>(`/admin/endpoints/${id}/facts${refresh ? '?refresh=1' : ''}`),
 
   // ---- ssh config hosts (~/.ssh/config, resolved via ssh -G) -----------
   sshHosts: () => get<SshHostOut[]>('/admin/ssh/hosts'),

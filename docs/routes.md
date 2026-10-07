@@ -25,7 +25,7 @@ declarations:
 | POST | `/v1/chat/completions` | primary; streaming + non-streaming, fully instrumented (`route: "chat.completions"`) |
 | POST | `/v1/completions` | instrumented; `501` if the resolved endpoint's protocol doesn't implement it |
 | POST | `/v1/embeddings` | instrumented; `501` if the resolved endpoint's protocol doesn't implement it |
-| GET | `/v1/models` | **synthesized by relay**, never forwarded: `auto` + every enabled endpoint alias + every endpoint's `available_models` |
+| GET | `/v1/models` | **synthesized by relay**, never forwarded: `auto` + every enabled endpoint alias + every endpoint's `available_models`, each with model-facts `meta` |
 | ANY | `/v1/{path}` | generic passthrough, recorded coarsely under its path name |
 
 ## Backend — control plane
@@ -39,10 +39,11 @@ No `/admin/*` route is authenticated — there is no admin plane. See
 | --- | --- | --- |
 | GET | `/admin/endpoints` | list + live health + 24h share |
 | POST | `/admin/endpoints` | create → 201 |
-| PATCH | `/admin/endpoints/{eid}` | edit any field (url, alias, key, priority, enabled, model_override, tunnel_command…) |
+| PATCH | `/admin/endpoints/{eid}` | edit any field (url, alias, key, priority, enabled, model_override, facts_override, tunnel_command…) |
 | DELETE | `/admin/endpoints/{eid}` | remove → 204 |
 | POST | `/admin/endpoints/{eid}/activate` | hot-swap: pin as active → `RouterState` |
 | POST | `/admin/endpoints/{eid}/test` | probe now → `{ok, latency_ms, models[], error}`; also feeds the health machine |
+| GET | `/admin/endpoints/{eid}/facts` | model facts `{endpoint_id, model, meta, detected, checked_ts}` for the upstream model (or `?model=`); `?refresh=1` reads the upstream again now |
 | GET | `/admin/endpoints/health` | pool snapshot + currently resolved id |
 | GET/PUT | `/admin/router` | policy (`manual`\|`priority`) + pin + resolved target |
 

@@ -13,6 +13,35 @@ Health = Literal["healthy", "degraded", "failed", "unknown"]
 RouterPolicy = Literal["manual", "priority"]
 
 
+# ---- model facts (services/model_facts.py) ---------------------------
+class ModelFactsOverride(BaseModel):
+    """What the operator knows better than the upstream says. Each field set
+    here wins over the detected value; null fields fall through."""
+    context_length: int | None = Field(default=None, ge=1, le=100_000_000)
+    tools: bool | None = None
+    vision: bool | None = None
+    reasoning: bool | None = None
+
+
+class ModelMeta(BaseModel):
+    """``meta`` on each ``GET /v1/models`` entry. null = unknown."""
+    context_length: int | None = None
+    tools: bool | None = None
+    vision: bool | None = None
+    reasoning: bool | None = None
+    # Where context_length came from (else where the known facts came from).
+    source: Literal["override", "props", "vllm", "probe"] | None = None
+
+
+class ModelFactsOut(BaseModel):
+    """GET /admin/endpoints/{id}/facts."""
+    endpoint_id: str
+    model: str | None = None
+    meta: ModelMeta
+    detected: ModelMeta  # before the override
+    checked_ts: float | None = None
+
+
 # ---- endpoints -------------------------------------------------------
 class EndpointCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
@@ -35,6 +64,7 @@ class EndpointCreate(BaseModel):
     weight: int = 1
     enabled: bool = True
     model_override: str | None = None  # model sent upstream for alias routes
+    facts_override: ModelFactsOverride | None = None
 
 
 class EndpointPatch(BaseModel):
@@ -53,6 +83,8 @@ class EndpointPatch(BaseModel):
     weight: int | None = None
     enabled: bool | None = None
     model_override: str | None = None
+    # Replaces the whole override; send {} to clear it.
+    facts_override: ModelFactsOverride | None = None
 
 
 class EndpointOut(BaseModel):
@@ -73,6 +105,7 @@ class EndpointOut(BaseModel):
     enabled: bool
     model: str | None = None
     model_override: str | None = None
+    facts_override: ModelFactsOverride | None = None
     health: Health = "unknown"
     ewma_latency_ms: float | None = None
     last_ok_ts: float | None = None

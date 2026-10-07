@@ -5,6 +5,8 @@ Hosts:
 - ``strict``   -> serves one model, 404s any other (stale-override healing)
 - ``opencode`` -> fake ``opencode serve`` (sessions, parts, Basic auth)
 - ``flaky``    -> always HTTP 500
+- ``extra``    -> any other fake by host name (model facts: llama.cpp
+  ``/props``, vLLM ``max_model_len``, a relay hiding vLLM)
 - anything else -> httpx.ConnectError (a dead box)
 """
 
@@ -194,6 +196,75 @@ def make_opencode_upstream() -> tuple[FastAPI, dict]:
     return up, calls
 
 
+def make_llama_upstream(calls: dict) -> FastAPI:
+    """llama.cpp: ``/props`` with n_ctx, modalities and template caps
+    (trimmed from a live b11445 server running Gemma 4 26B with an mmproj)."""
+    up = FastAPI()
+
+    @up.get("/props")
+    async def props():
+        calls["props"] = calls.get("props", 0) + 1
+        return {
+            "default_generation_settings": {"n_ctx": 262144, "params": {}},
+            "total_slots": 4, "model_alias": "gemma-4-26B-it",
+            "modalities": {"vision": True, "video": True, "audio": False},
+            "chat_template": "{%- if enable_thinking %}<|think|>{%- endif %}"
+                             "{%- if tools %}...{%- endif %}",
+            "chat_template_caps": {"supports_tools": True,
+                                   "supports_tool_calls": True},
+        }
+
+    @up.get("/v1/models")
+    async def models():
+        return {"data": [{"id": "gemma-4-26B-it", "owned_by": "llamacpp"}]}
+
+    return up
+
+
+def make_vllm_upstream(calls: dict) -> FastAPI:
+    """vLLM: no ``/props``; ``max_model_len`` on each ``/v1/models`` entry."""
+    up = FastAPI()
+
+    @up.get("/v1/models")
+    async def models():
+        calls["vllm_models"] = calls.get("vllm_models", 0) + 1
+        return {"object": "list", "data": [
+            {"id": "m-a", "object": "model", "max_model_len": 4096},
+            {"id": "m-b", "object": "model", "max_model_len": 8192},
+        ]}
+
+    return up
+
+
+def make_hidden_relay_upstream(calls: dict, message: str) -> FastAPI:
+    """Another relay in front of vLLM: a relay-shaped catalog with no
+    ``max_model_len``, and vLLM's 400 when max_tokens is too large."""
+    up = FastAPI()
+
+    @up.get("/v1/models")
+    async def models():
+        return {"object": "list", "data": [
+            {"id": "auto", "object": "model", "owned_by": "relay",
+             "relay": {"routing": "active endpoint (hot-swap)"}},
+            {"id": "default-model", "object": "model",
+             "owned_by": "relay:default-model",
+             "relay": {"endpoint": "default-model", "health": "healthy"}},
+        ]}
+
+    @up.post("/v1/chat/completions")
+    async def chat(request: Request):
+        calls["probes"] = calls.get("probes", 0) + 1
+        body = await request.json()
+        calls["probe_body"] = body
+        if body.get("max_tokens", 0) > 131072:
+            return JSONResponse(status_code=400, content={"error": {
+                "message": message, "type": "BadRequestError",
+                "param": "max_tokens", "code": 400}})
+        return {"choices": [{"message": {"content": "ok"}}]}
+
+    return up
+
+
 class _AlwaysFailTransport(httpx.AsyncBaseTransport):
     async def handle_async_request(self, request):
         return httpx.Response(500, content=b"upstream exploded",
@@ -202,7 +273,8 @@ class _AlwaysFailTransport(httpx.AsyncBaseTransport):
 
 class RoutingTransport(httpx.AsyncBaseTransport):
     def __init__(self, upstream_app: FastAPI,
-                 opencode_app: FastAPI | None = None):
+                 opencode_app: FastAPI | None = None,
+                 extra: dict[str, FastAPI] | None = None):
         self._routes: dict[str, httpx.AsyncBaseTransport] = {
             "good": httpx.ASGITransport(app=upstream_app),
             "flaky": _AlwaysFailTransport(),
@@ -210,6 +282,8 @@ class RoutingTransport(httpx.AsyncBaseTransport):
         }
         if opencode_app is not None:
             self._routes["opencode"] = httpx.ASGITransport(app=opencode_app)
+        for host, extra_app in (extra or {}).items():
+            self._routes[host] = httpx.ASGITransport(app=extra_app)
 
     async def handle_async_request(self, request):
         transport = self._routes.get(request.url.host)

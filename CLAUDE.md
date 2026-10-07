@@ -184,9 +184,9 @@ nothing touches the real DB, logs, or `.env`):
 
 ## Testing
 
-170 tests in `tests/backend/`, all against fake upstream ASGI apps
+189 tests in `tests/backend/`, all against fake upstream ASGI apps
 (`fake_upstream.py`, routed by hostname: `good` / `strict` / `opencode` /
-`flaky` / dead) — no real model server, agent server, or SSH host required.
+`flaky` / dead, plus `extra` hosts such as the model-facts fakes) — no real model server, agent server, or SSH host required.
 Tunnel lifecycle is tested with an injectable fake command, since real SSH
 can't be exercised in CI.
 

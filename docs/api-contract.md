@@ -55,6 +55,8 @@ All stats endpoints also accept optional `endpoint_id` and `model` filters.
   "tunnel_local_port": 9090,
   "priority": 100, "weight": 1, "enabled": true,
   "model": "gemma-4-26B-it", "model_override": null,
+  "facts_override": {"context_length": null, "tools": true,
+                     "vision": null, "reasoning": null},
   "health": "healthy|degraded|failed|unknown",
   "ewma_latency_ms": 42.1, "last_ok_ts": 1780000000.0,
   "consecutive_fails": 0, "active": true, "share": 0.46,
@@ -77,6 +79,39 @@ a failover target, never the default pin. See [opencode.md](opencode.md).
 
 `owner`, `external_key` and `meta` are null for endpoints added by hand and
 set for ones another program registered (see Registration below).
+
+`facts_override` (or null) holds model facts set by hand; each non-null field
+wins over what relay reads from the upstream (see Model facts below). A PATCH
+replaces the whole object, `{}` clears it, and leaving it out keeps it.
+`context_length` must be ≥ 1.
+
+### Model facts (`meta`)
+
+Every `GET /v1/models` entry carries:
+
+```json
+"meta": {"context_length": 262144, "tools": true, "vision": true,
+         "reasoning": true, "source": "props"}
+```
+
+`null` means unknown. `source` is where `context_length` came from:
+`override` (the endpoint's `facts_override`), `props` (llama.cpp `/props`),
+`vllm` (`max_model_len` in the upstream's `/v1/models`) or `probe` (the limit
+named in the error to an oversized `max_tokens`, for vLLM behind another
+relay); `override` too when only overridden fields are known; `null` when
+nothing is. `auto` carries the facts of the endpoint it resolves to now.
+Facts are read in the background: a listing waits at most ~3 s and may show
+nulls for an upstream it hasn't finished reading. Endpoints with a protocol
+other than `openai` are never read.
+
+`GET /admin/endpoints/{id}/facts[?refresh=1][&model=…]`:
+
+```json
+{"endpoint_id": "uuid", "model": "gemma-4-26B-it",
+ "meta": { /* as above, override applied */ },
+ "detected": { /* what the upstream said */ },
+ "checked_ts": 1791350000.0}
+```
 
 ### Registration
 
@@ -142,7 +177,7 @@ non-alias value) uses the normal pin / priority-failover resolution.
 `GET /v1/models` is synthesized by relay: it lists `auto`, every enabled
 endpoint's alias, and every id in an enabled endpoint's `available_models` —
 each carrying `relay.endpoint`, `relay.health`, `relay.protocol`, and
-`relay.upstream_model` metadata. Everything listed is routable: sending any of
+`relay.upstream_model` metadata, plus model-facts `meta` (above). Everything listed is routable: sending any of
 these ids back as `model` reaches the endpoint that advertised it.
 
 ### Tunnel (structured, supervised)

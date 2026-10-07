@@ -10,6 +10,7 @@ from app.schemas import (
     EndpointOut,
     EndpointPatch,
     EndpointTestResult,
+    ModelFactsOut,
     RouterState,
     RouterUpdate,
     SshHostOut,
@@ -97,6 +98,19 @@ async def test_endpoint(request: Request, eid: str):
         request.app.state.router.report_failure(
             eid, result.error or "test failed", source="probe")
     return result
+
+
+@router.get("/endpoints/{eid}/facts", response_model=ModelFactsOut)
+async def endpoint_facts(request: Request, eid: str, refresh: bool = False,
+                         model: str | None = None):
+    """Model facts for the endpoint's upstream model (or ``model``), as
+    ``/v1/models`` shows them, plus what was detected before the override.
+    ``refresh=1`` reads the upstream again now and waits for it."""
+    row = request.app.state.router.endpoints.get(eid)
+    if row is None:
+        raise HTTPException(404, "endpoint not found")
+    model = model or request.app.state.router.upstream_model(eid)
+    return await request.app.state.facts.get(row, model, refresh=refresh)
 
 
 # ---- interactive SSH tunnel sessions --------------------------------------

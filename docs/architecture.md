@@ -89,6 +89,8 @@ failover may land on an endpoint running a different model.
 | Storage | `app/db.py` | SQLite (WAL), additive column migrations, one-time rollup backfill |
 | Proxy | `app/services/proxy.py` + `app/routes/v1.py` | streaming tee, TTFT, usage capture, pre-first-byte retry, stale-override self-heal |
 | Protocol adapters | `app/services/adapters/` | per-`protocol` probe + forward; `passthrough` (OpenAI) and `opencode` (agent sessions) |
+| Model catalog | `app/services/catalog.py` | the synthesized `GET /v1/models`, with `meta` on every entry |
+| Model facts | `app/services/model_facts.py` | context window / tools / vision / reasoning per endpoint+model: override, llama.cpp `/props`, vLLM `max_model_len`, or a probe; cached, read in the background |
 | Router | `app/services/router.py` | registry, alias + allowlist routing, health state machine, tunnel routes |
 | Health | `app/services/health.py` | probe cadence + state feed; the probe request itself comes from the adapter |
 | Stats | `app/services/stats.py` + `app/routes/admin_stats.py` | ECharts-shaped aggregates over rollups and raw rows |
@@ -183,6 +185,38 @@ endpoint with the prober-discovered model. Alias pinning still holds — it
 never switches endpoints. If no replacement model was discovered, the
 rejection goes through the normal failure path instead of resending a dead
 model id.
+
+## Model facts
+
+An agent needs a model's context window, and whether it calls tools, takes
+images or reasons, before it sends anything. `GET /v1/models` adds a `meta`
+object to every entry (`context_length`, `tools`, `vision`, `reasoning`,
+`source`; null = unknown), read per endpoint and upstream model:
+
+1. `facts_override` on the endpoint (Endpoints page) wins, field by field.
+2. llama.cpp: `GET <origin>/props` (origin = base URL without `/v1`):
+   `default_generation_settings.n_ctx`, `modalities.vision`,
+   `chat_template_caps.supports_tools` (older builds: "tool" in the template),
+   and reasoning when the chat template has a thinking switch.
+3. vLLM: `max_model_len` on the model's entry in `<base>/models`.
+4. An upstream that is itself a relay (its catalog has `relay` objects on its
+   entries; also any `server_type: vLLM`): one chat request with
+   `max_tokens: 10000000`, `stream: true`. vLLM's 400 names the limit
+   (`max_model_len=…=131072`, or "maximum context length is N"); a 2xx is
+   dropped at once, so nothing generates for long. Plain OpenAI-compatible
+   servers are never probed.
+
+`source` says where `context_length` came from (`override`, `props`, `vllm`,
+`probe`), or `override` when only overridden fields are known. Protocols other
+than `openai` are never read: their facts are the override's.
+
+`/v1/models` must answer fast with an upstream slow or gone, so a lookup
+starts the reads that are due, waits up to 3 s, and answers with what is known;
+the rest fill the cache in the background (reads use the probe pool). The
+cache key is (endpoint, base URL, upstream model), so a changed URL or model
+is a fresh read. A failed read is retried after 5 minutes, a good one re-read
+after an hour (the old value is served meanwhile).
+`GET /admin/endpoints/{id}/facts?refresh=1` reads again now.
 
 ## Storage and scale
 

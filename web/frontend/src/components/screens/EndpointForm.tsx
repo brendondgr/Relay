@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CSSProperties } from 'react';
-import type { EndpointOut } from '../../lib/types';
+import type { EndpointOut, ModelFactsOverride } from '../../lib/types';
 import { C, MONO, SANS } from '../../lib/styles';
 
 /** Shared add/edit endpoint form.
@@ -45,10 +45,23 @@ export interface EndpointFormValues {
   key: string;
   /** One model id per line (commas accepted too) — see parseModels. */
   models: string;
+  /** Model-facts override: '' = detect from the upstream. */
+  ctx: string;
+  tools: Tri;
+  vision: Tri;
+  reasoning: Tri;
 }
 
-export const emptyForm = (): EndpointFormValues =>
-  ({ name: '', type: 'llama.cpp', alias: '', url: '', key: '', models: '' });
+/** A fact the operator can force: '' leaves it to detection. */
+type Tri = '' | 'yes' | 'no';
+const FACT_FLAGS = ['tools', 'vision', 'reasoning'] as const;
+
+const triFrom = (v: boolean | null | undefined): Tri => (v == null ? '' : v ? 'yes' : 'no');
+
+export const emptyForm = (): EndpointFormValues => ({
+  name: '', type: 'llama.cpp', alias: '', url: '', key: '', models: '',
+  ctx: '', tools: '', vision: '', reasoning: '',
+});
 
 export const formFromEndpoint = (e: EndpointOut): EndpointFormValues => ({
   name: e.name,
@@ -57,7 +70,21 @@ export const formFromEndpoint = (e: EndpointOut): EndpointFormValues => ({
   url: e.base_url,
   key: '',
   models: (e.available_models ?? []).join('\n'),
+  ctx: e.facts_override?.context_length ? String(e.facts_override.context_length) : '',
+  tools: triFrom(e.facts_override?.tools),
+  vision: triFrom(e.facts_override?.vision),
+  reasoning: triFrom(e.facts_override?.reasoning),
 });
+
+/** Form -> the facts_override the API expects. Always an object, so an edit
+ * that blanks every field clears the stored override ({} clears). */
+export const factsFromForm = (v: EndpointFormValues): Partial<ModelFactsOverride> => {
+  const out: Partial<ModelFactsOverride> = {};
+  const ctx = parseInt(v.ctx.replace(/[_,\s]/g, ''), 10);
+  if (ctx > 0) out.context_length = ctx;
+  for (const f of FACT_FLAGS) if (v[f]) out[f] = v[f] === 'yes';
+  return out;
+};
 
 /** Textarea contents -> the model allowlist the API expects. */
 export const parseModels = (text: string): string[] =>
@@ -149,6 +176,33 @@ export default function EndpointForm(props: Props): React.JSX.Element {
               <span style={{ fontFamily: MONO }}>anthropic/claude-sonnet-4-5</span>. Leave empty to serve only the
               alias, on whatever model the server defaults to.</>
           : ' Leave empty to advertise just the alias.'}
+      </span>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 120px', gap: 10 }}>
+        <input
+          placeholder="context window (detected)"
+          value={values.ctx}
+          onChange={(e) => onChange({ ctx: e.target.value })}
+          style={inputStyle}
+        />
+        {FACT_FLAGS.map(f => (
+          <select
+            key={f}
+            value={values[f]}
+            onChange={(e) => onChange({ [f]: e.target.value as Tri } as Partial<EndpointFormValues>)}
+            style={selectStyle}
+          >
+            <option value="">{f}: detect</option>
+            <option value="yes">{f}: yes</option>
+            <option value="no">{f}: no</option>
+          </select>
+        ))}
+      </div>
+      <span style={{ font: `400 10.5px ${SANS}`, color: C.textDim }}>
+        <b style={{ color: C.textMut }}>Model facts</b> shown as <span style={{ fontFamily: MONO }}>meta</span> in
+        <span style={{ fontFamily: MONO }}> GET /v1/models</span>. relay reads them from the upstream (llama.cpp
+        <span style={{ fontFamily: MONO }}> /props</span>, vLLM <span style={{ fontFamily: MONO }}>max_model_len</span>,
+        or a probe through another relay); anything set here wins.
       </span>
 
       {isAgent && (

@@ -63,6 +63,7 @@ def proxy_env(cfg, oc_cfg):
         app.state.http = fake
         app.state.proxy.http = fake
         app.state.prober.http = fake
+        app.state.facts.http = fake
         yield c, app, calls
 
 
@@ -88,4 +89,5 @@ def opencode_env(cfg, oc_cfg):
         app.state.http = fake
         app.state.proxy.http = fake
         app.state.prober.http = fake
+        app.state.facts.http = fake
         yield c, app, oc_calls

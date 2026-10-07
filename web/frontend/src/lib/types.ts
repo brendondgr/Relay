@@ -1,11 +1,37 @@
 /** Shared API contract types (mirror docs/api-contract.md). */
 
+/** Model facts the operator sets by hand; each set field wins over what the
+ * upstream reports (services/model_facts.py). */
+export interface ModelFactsOverride {
+  context_length: number | null;
+  tools: boolean | null;
+  vision: boolean | null;
+  reasoning: boolean | null;
+}
+
+/** `meta` on each GET /v1/models entry. null = unknown. */
+export interface ModelMeta extends ModelFactsOverride {
+  /** Where context_length came from. */
+  source: 'override' | 'props' | 'vllm' | 'probe' | null;
+}
+
+/** GET /admin/endpoints/{id}/facts[?refresh=1] */
+export interface ModelFactsOut {
+  endpoint_id: string;
+  model: string | null;
+  meta: ModelMeta;
+  /** What the upstream said, before the override. */
+  detected: ModelMeta;
+  checked_ts: number | null;
+}
+
 export interface EndpointOut {
   id: string;
   name: string;
   /** Routing alias: clients send this as the "model" to reach this server. */
   alias: string | null;
   model_override: string | null;
+  facts_override: ModelFactsOverride | null;
   kind: 'local' | 'remote_direct' | 'remote_tunnel';
   server_type: 'llama.cpp' | 'vLLM' | 'ollama' | 'openai' | 'opencode';
   /** Wire protocol relay speaks to this upstream. Non-'openai' endpoints are

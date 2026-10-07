@@ -6,7 +6,7 @@ import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
 import { usePoll } from '../../hooks/usePoll';
 import EndpointForm, {
-  emptyForm, formFromEndpoint, inputStyle, parseModels, protocolFor, selectStyle,
+  emptyForm, factsFromForm, formFromEndpoint, inputStyle, parseModels, protocolFor, selectStyle,
 } from './EndpointForm';
 import type { EndpointFormValues } from './EndpointForm';
 
@@ -99,6 +99,7 @@ export default function Endpoints(props: EndpointsProps): React.JSX.Element {
         upstream_key: form.key || null,
         alias: form.alias.trim() || null,
         tunnel_command: tunnel.trim() || null,
+        facts_override: factsFromForm(form),
       });
       log.info('endpoints.create', `${form.name}${form.alias ? ` (alias ${form.alias})` : ''}${tunnel.trim() ? ' +tunnel' : ''}`);
       setAddOpen(false);
@@ -192,6 +193,7 @@ export default function Endpoints(props: EndpointsProps): React.JSX.Element {
       protocol: protocolFor(editForm.type),
       available_models: parseModels(editForm.models),
       alias: editForm.alias.trim() || null,
+      facts_override: factsFromForm(editForm),
     };
     if (editForm.key.trim()) patch.upstream_key = editForm.key.trim();
     try {

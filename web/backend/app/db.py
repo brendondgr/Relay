@@ -229,6 +229,11 @@ class Database:
         for col in ("owner", "external_key", "meta"):
             if col not in cols:
                 self._conn.execute(f"ALTER TABLE endpoints ADD COLUMN {col} TEXT")
+        # Model facts the operator sets by hand (services/model_facts.py):
+        # JSON {context_length, tools, vision, reasoning}, each optional.
+        if "facts_override" not in cols:
+            self._conn.execute(
+                "ALTER TABLE endpoints ADD COLUMN facts_override TEXT")
         self._conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_endpoints_external_key"
             " ON endpoints(external_key) WHERE external_key IS NOT NULL")

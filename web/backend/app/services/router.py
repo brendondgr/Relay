@@ -67,6 +67,17 @@ def _meta(value) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+def _facts_json(override) -> str | None:
+    """Storage form of ``facts_override``: JSON of the fields that are set,
+    or NULL when none are (so ``{}`` in a PATCH clears it)."""
+    if override is None:
+        return None
+    if hasattr(override, "model_dump"):
+        override = override.model_dump()
+    kept = {k: v for k, v in override.items() if v is not None}
+    return json.dumps(kept) if kept else None
+
+
 def _models_json(models: list[str]) -> str | None:
     """Storage form: a JSON array, or NULL when the allowlist is empty."""
     return json.dumps(models) if models else None
@@ -284,6 +295,7 @@ class Router:
             "priority": spec.priority,
             "weight": spec.weight, "enabled": int(spec.enabled),
             "model_override": spec.model_override,
+            "facts_override": _facts_json(spec.facts_override),
             "created_ts": time.time(),
         }
         # Positional insert against an explicit column list: the order here
@@ -293,8 +305,8 @@ class Router:
             " protocol, available_models,"
             " base_url, upstream_key, tunnel_id, tunnel_command,"
             " tunnel_local_port, priority, weight, enabled,"
-            " model_override, created_ts)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " model_override, facts_override, created_ts)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             tuple(row.values()))
         self.endpoints[eid] = row
         self.state[eid] = LiveState()
@@ -329,6 +341,8 @@ class Router:
             changes["available_models"] = _models_json(
                 self._validate_models(changes["available_models"],
                                       exclude_id=eid))
+        if "facts_override" in changes:
+            changes["facts_override"] = _facts_json(changes["facts_override"])
         row.update(changes)
         row["kind"] = patch.kind or _infer_kind(
             row["base_url"], row.get("tunnel_id"), row.get("tunnel_command"))
@@ -694,7 +708,8 @@ class Router:
             tunnel_local_port=row.get("tunnel_local_port"),
             priority=row["priority"], weight=row["weight"],
             enabled=bool(row["enabled"]), model=st.model,
-            model_override=row.get("model_override"), health=st.health,
+            model_override=row.get("model_override"),
+            facts_override=_meta(row.get("facts_override")), health=st.health,
             ewma_latency_ms=(
                 round(st.ewma_latency_ms, 1) if st.ewma_latency_ms else None),
             last_ok_ts=st.last_ok_ts, consecutive_fails=st.consecutive_fails,

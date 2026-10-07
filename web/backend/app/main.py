@@ -27,6 +27,7 @@ from app.routes import (
     v1,
 )
 from app.services.health import HealthProber
+from app.services.model_facts import ModelFacts
 from app.services.opencode_boot import discover_models, ensure_endpoint
 from app.services.proxy import ProxyService
 from app.services.router import Router
@@ -86,12 +87,15 @@ async def lifespan(app: FastAPI):
     app.state.prober = HealthProber(
         app.state.router, app.state.probe_http,
         interval=cfg.probe_interval, timeout=cfg.probe_timeout)
+    # Model facts ride the probe pool too: they are reads of the upstream's
+    # own metadata, and must not queue behind proxied traffic either.
+    app.state.facts = ModelFacts(app.state.router, app.state.probe_http)
     app.state.proxy = ProxyService(
         app.state.http, app.state.router, app.state.telemetry,
         app.state.live, app.state.settings,
         max_concurrency=cfg.max_concurrency,
         queue_limit=cfg.queue_limit, queue_timeout=cfg.queue_timeout,
-        max_body_bytes=cfg.max_body_bytes)
+        max_body_bytes=cfg.max_body_bytes, facts=app.state.facts)
     app.state.tunnels = TunnelManager(app.state.db, app.state.http)
     app.state.tunnel_sessions = TunnelSessionManager()
     await app.state.telemetry.start()
@@ -133,6 +137,7 @@ async def lifespan(app: FastAPI):
         await app.state.tunnel_sessions.shutdown()
         await app.state.tunnels.stop_supervisor()
         await app.state.prober.stop()
+        await app.state.facts.close()
         await app.state.telemetry.stop()
         await app.state.http.aclose()
         await app.state.probe_http.aclose()

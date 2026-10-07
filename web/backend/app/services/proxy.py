@@ -37,6 +37,7 @@ from app.services.adapters import (
     UpstreamSaturated as _UpstreamSaturated,
     get_adapter,
 )
+from app.services.catalog import models_catalog
 from app.services.telemetry import RequestRecord
 
 log = get_logger("proxy")
@@ -222,8 +223,10 @@ class ProxyService:
     def __init__(self, http: httpx.AsyncClient, router, telemetry, live,
                  settings, max_concurrency: int = 64,
                  queue_limit: int = 512, queue_timeout: float = 30.0,
-                 max_body_bytes: int = 8 * 1024 * 1024):
+                 max_body_bytes: int = 8 * 1024 * 1024, facts=None):
         self.http = http
+        # services/model_facts.ModelFacts; None leaves every meta unknown.
+        self.facts = facts
         self.router = router
         self.telemetry = telemetry
         self.live = live
@@ -246,7 +249,8 @@ class ProxyService:
         client_key = mask_key(extract_bearer(request))
 
         if route == "models" and request.method == "GET":
-            return self._models_catalog()
+            return JSONResponse(await models_catalog(
+                self.router, self.settings.current.auto_failover, self.facts))
 
         body_bytes = await self._read_body(request)
         if body_bytes is None:
@@ -428,47 +432,6 @@ class ProxyService:
             return parsed if isinstance(parsed, dict) else None
         except (json.JSONDecodeError, UnicodeDecodeError):
             return None
-
-    def _models_catalog(self) -> JSONResponse:
-        """Synthesized /v1/models: "auto", every enabled endpoint alias, and
-        every model an endpoint declares in its allowlist — so an OpenAI client
-        discovers both the routing names (skynet, local, ...) and the concrete
-        models it can ask for by name (anthropic/claude-sonnet-4-5, ...).
-
-        Everything listed here is routable: sending any of these ids back as
-        "model" reaches the endpoint that advertised it.
-        """
-        created = int(time.time())
-        data = [{"id": "auto", "object": "model", "created": created,
-                 "owned_by": "relay",
-                 "relay": {"routing": "active endpoint (hot-swap)"}}]
-        for row in self.router.endpoints.values():
-            if not row["enabled"]:
-                continue
-            st = self.router.state.get(row["id"])
-            health = st.health if st else "unknown"
-            if row.get("alias"):
-                data.append({
-                    "id": row["alias"], "object": "model", "created": created,
-                    "owned_by": f"relay:{row['name']}",
-                    "relay": {
-                        "endpoint": row["name"], "health": health,
-                        "protocol": row.get("protocol") or "openai",
-                        "upstream_model": self.router.upstream_model(
-                            row["id"]),
-                    },
-                })
-            for model in self.router.available_models(row["id"]):
-                data.append({
-                    "id": model, "object": "model", "created": created,
-                    "owned_by": f"relay:{row['name']}",
-                    "relay": {
-                        "endpoint": row["name"], "health": health,
-                        "protocol": row.get("protocol") or "openai",
-                        "upstream_model": model,
-                    },
-                })
-        return JSONResponse({"object": "list", "data": data})
 
     # ---- forwarding with pre-first-byte failover -------------------------
     async def _dispatch(self, request: Request, path: str,
