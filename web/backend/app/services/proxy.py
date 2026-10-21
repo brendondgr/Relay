@@ -22,7 +22,6 @@ import json
 import time
 import uuid
 from collections.abc import Callable
-from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import Request
@@ -30,6 +29,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from app.core.logging import get_logger
 from app.security import extract_bearer, mask_key
+from app.services.admission import AdmissionGate, Overloaded
 from app.services.adapters import (
     HOP_BY_HOP as _HOP_BY_HOP,
     RetryableUpstreamError as _RetryableUpstreamError,
@@ -39,6 +39,7 @@ from app.services.adapters import (
 )
 from app.services.catalog import models_catalog
 from app.services.gpu_lease import THREAD_HEADER, GpuCancelled, GpuLeases, lease_from
+from app.services.sse import collect_stream_text, parse_sse_tail
 from app.services.telemetry import RequestRecord
 
 log = get_logger("proxy")
@@ -75,149 +76,6 @@ def _upstream_error(status: int, message: str) -> JSONResponse:
         content={"error": {"message": message, "type": "relay_proxy_error",
                            "code": status}},
     )
-
-
-def _parse_sse_tail(buf: bytes) -> tuple[dict | None, int]:
-    """Extract the trailing usage object + count content chunks from an SSE
-    byte buffer. Returns (usage|None, delta_chunks_seen_in_buffer)."""
-    usage = None
-    chunks = 0
-    for raw_line in buf.split(b"\n"):
-        line = raw_line.strip()
-        if not line.startswith(b"data:"):
-            continue
-        payload = line[5:].strip()
-        if not payload or payload == b"[DONE]":
-            continue
-        chunks += 1
-        if b'"usage"' in payload:
-            try:
-                obj = json.loads(payload)
-                if isinstance(obj.get("usage"), dict):
-                    usage = obj["usage"]
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                pass
-    return usage, chunks
-
-
-def _collect_stream_text(buf: bytes) -> str:
-    """Best-effort completion text from buffered SSE (log_bodies mode)."""
-    out: list[str] = []
-    for raw_line in buf.split(b"\n"):
-        line = raw_line.strip()
-        if not line.startswith(b"data:"):
-            continue
-        payload = line[5:].strip()
-        if not payload or payload == b"[DONE]":
-            continue
-        try:
-            obj = json.loads(payload)
-            for choice in obj.get("choices", []):
-                delta = choice.get("delta") or choice.get("message") or {}
-                if delta.get("content"):
-                    out.append(delta["content"])
-        except (json.JSONDecodeError, AttributeError, UnicodeDecodeError):
-            continue
-    return "".join(out)[:_BODY_LIMIT]
-
-
-class Overloaded(Exception):
-    """Relay refused the request at the door rather than queueing it."""
-
-    def __init__(self, reason: str, retry_after: int):
-        super().__init__(reason)
-        self.reason = reason
-        self.retry_after = retry_after
-
-
-class AdmissionGate:
-    """Bounded admission control for the forwarding hot path.
-
-    Three numbers, not one:
-
-    - ``max_concurrency`` — attempts in flight at an upstream at once.
-    - ``queue_limit`` — how many *more* may wait for a slot. This is the one
-      that was missing. A bare semaphore has an unbounded wait queue, so a
-      burst of 300 against 18 slots parked 282 callers behind agent turns
-      that may run for minutes; by the time a slot freed, the client had
-      long since given up, and relay still spent an upstream turn on it.
-    - ``queue_timeout`` — how long a waiter may sit there before relay
-      answers 429 itself instead of letting the caller's own timeout decide.
-
-    Shedding at the door is what keeps p99 finite when arrivals outrun the
-    upstream: a request that will not start for two minutes is better served
-    a Retry-After now. ``queue_timeout <= 0`` restores the old unbounded
-    wait, and ``queue_limit <= 0`` means "never queue".
-    """
-
-    def __init__(self, max_concurrency: int, queue_limit: int = 512,
-                 queue_timeout: float = 30.0):
-        self.max_concurrency = max(1, max_concurrency)
-        self.queue_limit = max(0, queue_limit)
-        self.queue_timeout = queue_timeout
-        self._slots = asyncio.Semaphore(self.max_concurrency)
-        self._active = 0
-        self._waiting = 0
-
-    @property
-    def active(self) -> int:
-        return self._active
-
-    @property
-    def waiting(self) -> int:
-        return self._waiting
-
-    async def acquire(self, queue: bool = True) -> "Callable[[], None]":
-        """Take a slot, or raise :class:`Overloaded`. Returns the (idempotent)
-        release callable — a slot outlives the coroutine that took it, because
-        a streamed response is still occupying the upstream long after the
-        handler returned.
-        """
-        # Checked before incrementing the waiter count, so the limit counts
-        # callers actually parked on the semaphore and not this one.
-        if self._slots.locked():
-            if not queue or self.queue_limit <= 0:
-                raise Overloaded("concurrency limit reached", 1)
-            if self._waiting >= self.queue_limit:
-                raise Overloaded(
-                    f"queue full: {self._waiting} requests already waiting"
-                    f" for one of {self.max_concurrency} slots", 5)
-        self._waiting += 1
-        try:
-            await asyncio.wait_for(
-                self._slots.acquire(),
-                self.queue_timeout if self.queue_timeout > 0 else None)
-        except (TimeoutError, asyncio.TimeoutError):
-            raise Overloaded(
-                f"waited {self.queue_timeout:.0f}s for a free upstream slot",
-                5) from None
-        finally:
-            self._waiting -= 1
-        self._active += 1
-        released = False
-
-        def release() -> None:
-            nonlocal released
-            if released:
-                return
-            released = True
-            self._active -= 1
-            self._slots.release()
-
-        return release
-
-    @asynccontextmanager
-    async def slot(self, queue: bool = True):
-        release = await self.acquire(queue=queue)
-        try:
-            yield
-        finally:
-            release()
-
-    def snapshot(self) -> dict:
-        return {"active": self._active, "waiting": self._waiting,
-                "max_concurrency": self.max_concurrency,
-                "queue_limit": self.queue_limit}
 
 
 class ProxyService:
@@ -756,7 +614,7 @@ class ProxyService:
         record.error = error
         record.ok = error is None and resp.status_code < 400
 
-        usage, _ = _parse_sse_tail(tail)
+        usage, _ = parse_sse_tail(tail)
         if usage:
             record.prompt_tokens = usage.get("prompt_tokens")
             record.completion_tokens = usage.get("completion_tokens")
@@ -769,7 +627,7 @@ class ProxyService:
             record.tokens_per_sec = round(
                 record.completion_tokens / (gen_ms / 1000), 2)
         if body_buf:
-            record.completion_body = _collect_stream_text(body_buf)
+            record.completion_body = collect_stream_text(body_buf, _BODY_LIMIT)
         record.cost_usd = self._cost(record)
         self.telemetry.submit(record)
         if record.ok:

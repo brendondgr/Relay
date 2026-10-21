@@ -87,7 +87,7 @@ failover may land on an endpoint running a different model.
 | Client labeling | `app/security.py` | bearer extraction + masking for telemetry attribution. No auth plane — nothing here rejects a request |
 | OpenCode bootstrap | `app/services/opencode_boot.py` | upserts the agent endpoint at boot, then discovers and publishes its free models |
 | Storage | `app/db.py` | SQLite (WAL), additive column migrations, one-time rollup backfill |
-| Proxy | `app/services/proxy.py` + `app/routes/v1.py` | streaming tee, TTFT, usage capture, pre-first-byte retry, stale-override self-heal |
+| Proxy | `app/services/proxy.py` (with `admission.py`, the bounded gate at the door, and `sse.py`, usage and text read back from a stream) + `app/routes/v1.py` | streaming tee, TTFT, usage capture, pre-first-byte retry, stale-override self-heal |
 | Protocol adapters | `app/services/adapters/` | per-`protocol` probe + forward; `passthrough` (OpenAI) and `opencode` (agent sessions) |
 | Model catalog | `app/services/catalog.py` | the synthesized `GET /v1/models`, with `meta` on every entry |
 | Model facts | `app/services/model_facts.py` | context window / tools / vision / reasoning per endpoint+model: override, llama.cpp `/props`, vLLM `max_model_len`, or a probe; cached, read in the background |
