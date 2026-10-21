@@ -6,13 +6,13 @@ scan = []
 summary = "LLM Relay: one OpenAI-compatible endpoint for every chat model, local or remote, with usage charts"
 gpu = false
 disk_gb = 0.35
-needs = ["uv", "npm"]
+needs = ["uv"]
 after = []
 check = "aihub check relay --start"
 
 [[steps]]
 run = "aihub install relay"
-what = "makes web/backend/.venv/ from uv.lock (about 51 MB) and builds the dashboard with npm (about 290 MB of node_modules/, a few minutes)"
+what = "makes web/backend/.venv/ from uv.lock (about 51 MB) and, when npm is on PATH, builds the dashboard (about 290 MB of node_modules/, a few minutes); without npm it skips the build, and the relay runs without its page"
 -->
 
 # LLM Relay: setup
@@ -39,7 +39,7 @@ Read from this machine on 2026-10-21:
 ## Prerequisites
 
 - [The hub](../../../docs/setup/hub.md), and `uv` on `PATH`.
-- Node 22 and npm, for the dashboard build ([host.md §3](../../../docs/setup/host.md#3-packages)). Without npm the backend still installs and runs; only the page is missing.
+- Node 22 and npm, for the dashboard build ([host.md §3](../../../docs/setup/host.md#3-packages)). They're optional, so the block's `needs` leaves npm out: without npm, `aihub install relay` skips the build, and the backend installs and runs (the API, `/v1` and every endpoint work); only the page is missing until you build it (below).
 - No GPU, no models, no account.
 - Optional: [OpenCode](../../opencode/setup/opencode.md), installed first, if you want the `agent` endpoint.
 
@@ -65,13 +65,44 @@ The relay's endpoints live in its database, `data/databases/relay.db` (gitignore
 - **lcpp**: each llama.cpp instance registers itself as `lcpp:<port>` when it's ready, under its catalog nickname (`gemma4-26B` here), and is removed when it stops. See [llama.cpp](../../lcpp/setup/llama-cpp.md).
 - **vllm**: the loaded profile registers under its `alias` (`Qwen3-0.6B-vLLM`, …). See [vLLM](../../vllm/setup/vllm.md).
 - **OpenCode**: at start the relay adds an `opencode` endpoint (alias `agent`) when `OPENCODE_ENABLED` is on and it finds the Basic credential that the opencode mod mints. Without the credential it logs a warning and adds nothing.
-- **By hand**: the Endpoints view on the relay's page (any OpenAI-compatible server, optionally behind an SSH tunnel).
+- **By hand**: the Endpoints view on the relay's page, or `POST /admin/endpoints` (any OpenAI-compatible server, local, hosted or behind an SSH tunnel; see [Adding a hosted provider](#adding-a-hosted-provider)).
 
 On this machine, for example, there is also `skynet`: a remote vLLM box reached through an SSH tunnel (`ssh -N -L 127.0.0.1:9090:localhost:9090 skynet`). It exists only here. Tunnels aren't connected at start; they're connected from the Endpoints view.
 
 ## Choosing models
 
-The relay runs no model and downloads none, so it has no suggestions. Which models it lists is up to you: any OpenAI-compatible server works, local or remote. For local ones, pick models in [llama.cpp](../../lcpp/setup/llama-cpp.md) (any GGUF) or [vLLM](../../vllm/setup/vllm.md) (Hugging Face repos), and they appear here while they run; for hosted ones, add an endpoint on the page or use [OpenCode](../../opencode/setup/opencode.md)'s free models. Each model is listed under its alias, the name clients send as `model`.
+The relay runs no model and downloads none, so it has no suggestions. Which models it lists is up to you: any OpenAI-compatible server works, local or remote. For local ones, pick models in [llama.cpp](../../lcpp/setup/llama-cpp.md) (any GGUF) or [vLLM](../../vllm/setup/vllm.md) (Hugging Face repos), and they appear here while they run; for hosted ones, add an endpoint (below) or use [OpenCode](../../opencode/setup/opencode.md)'s free models. Each model is listed under its alias, the name clients send as `model`.
+
+### Adding a hosted provider
+
+With no local LLM (or no GPU), a hosted API gives Chat and the agent a model. The relay speaks two upstream protocols (`protocol` on an endpoint, the only field it dispatches on): **`openai`**, any OpenAI-compatible server (llama.cpp, vLLM, Ollama, or a hosted API such as OpenAI or OpenRouter), and **`opencode`**, the OpenCode agent server, which the relay adds by itself (above). A hosted provider is an `openai` endpoint:
+
+| Field on the page | API field | Value |
+|---|---|---|
+| name | `name` | any label, such as `openrouter` |
+| type | `server_type` | **OpenAI-compat** (`openai`); it's only a label, `protocol` (`openai`, the default) is what counts |
+| URL | `base_url` | the provider's base URL, with `/v1`: `https://api.openai.com/v1` (OpenAI) or `https://openrouter.ai/api/v1` (OpenRouter). The relay adds `/models` and `/chat/completions` to it |
+| api key | `upstream_key` | your key from the provider. The relay sends it upstream as `Authorization: Bearer <key>`; callers of the relay never see it, and the API only reports `has_key`. It's kept as plain text in `data/databases/relay.db` (and so in `aihub backup`'s archive) |
+| available models | `available_models` | the provider's model ids you want, one per line: each is listed in the relay's `/v1/models` and reaches this endpoint with that exact id. Leave none and only the alias is listed |
+| alias | `alias` | optional: one extra name for the endpoint; a request for it goes to `model_override` (API only) or else the first model the provider lists, so prefer naming models |
+
+Model ids are the provider's own: OpenRouter's are `provider/model`, listed publicly by `curl -s https://openrouter.ai/api/v1/models`; OpenAI's by `curl -s https://api.openai.com/v1/models -H "Authorization: Bearer $KEY"`. An id must be unique across the relay: one that another endpoint already serves or uses as its alias is refused (`422`, naming that endpoint).
+
+**On the page:** Endpoints → **+ Add endpoint**, fill in the fields above, **Save endpoint**. The relay probes it at once (`GET <base_url>/models` with the key), and again every 15 s (`RELAY_PROBE_INTERVAL`); a wrong key or URL shows in its health and its last error.
+
+**With the API** (from this machine; read the key without echoing it, so it stays out of your shell history):
+
+```bash
+read -rs KEY
+```
+
+```bash
+curl -s -X POST http://127.0.0.1:4000/admin/endpoints -H 'content-type: application/json' \
+  -d '{"name": "openrouter", "base_url": "https://openrouter.ai/api/v1", "server_type": "openai", "protocol": "openai",
+       "upstream_key": "'"$KEY"'", "available_models": ["<model id>", "<another model id>"]}'
+```
+
+Expect `201` with the endpoint (`"kind": "remote_direct"`, `"has_key": true`, `"health"` after the first probe). The body is `EndpointCreate` in `web/backend/app/schemas/__init__.py`; `PATCH /admin/endpoints/<id>` changes one field, and `DELETE` removes it. Then `curl -s http://127.0.0.1:4000/v1/models` lists the ids, and Chat and the agent can use them (`AGENT_MODEL` in [the agent's doc](../../agent/setup/agent.md#choosing-models)). Every request to them is billed by the provider.
 
 ## Configuration
 
@@ -100,10 +131,10 @@ The relay runs no model and downloads none, so it has no suggestions. Which mode
 ## Check it works
 
 ```bash
-aihub check relay
+aihub check relay --start
 ```
 
-Expect `relay: all checks passed`. One `warn` line is expected today: `page calls fetch(); use ctx.call / ctx.api …`.
+Starts the relay if it's stopped (a stopped mod's live checks are skipped), then checks it. Expect `relay: all checks passed`. One `warn` line is expected today: `page calls fetch(); use ctx.call / ctx.api …`.
 
 ```bash
 curl -s http://127.0.0.1:7000/api/s/relay/health
