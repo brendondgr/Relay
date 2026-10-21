@@ -8,7 +8,7 @@ gpu = false
 disk_gb = 0.35
 needs = ["uv", "npm"]
 after = []
-check = "aihub check relay"
+check = "aihub check relay --start"
 
 [[steps]]
 run = "aihub install relay"
