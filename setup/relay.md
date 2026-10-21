@@ -62,12 +62,12 @@ cd services/relay/web/frontend && npm ci && npm run build
 ### A new machine starts with no upstreams
 
 The relay's endpoints live in its database, `data/databases/relay.db` (gitignored). A fresh one has none. They come from:
-- **lcpp**: each llama.cpp instance registers itself as `lcpp:<port>` when it's ready, under its catalog nickname (`gemma4-26B` here), and is removed when it stops. See [llama.cpp](../../lcpp/setup/llama-cpp.md).
+- **lcpp**: each llama.cpp instance registers itself as `lcpp:<port>` when it's ready, under its catalog id and nicknames (`<your-model>`; on the machine these docs were written on, for example, `gemma4-26B`), and is removed when it stops. See [llama.cpp](../../lcpp/setup/llama-cpp.md).
 - **vllm**: the loaded profile registers under its `alias` (`Qwen3-0.6B-vLLM`, …). See [vLLM](../../vllm/setup/vllm.md).
 - **OpenCode**: at start the relay adds an `opencode` endpoint (alias `agent`) when `OPENCODE_ENABLED` is on and it finds the Basic credential that the opencode mod mints. Without the credential it logs a warning and adds nothing.
 - **By hand**: the Endpoints view on the relay's page, or `POST /admin/endpoints` (any OpenAI-compatible server, local, hosted or behind an SSH tunnel; see [Adding a hosted provider](#adding-a-hosted-provider)).
 
-On this machine, for example, there is also `skynet`: a remote vLLM box reached through an SSH tunnel (`ssh -N -L 127.0.0.1:9090:localhost:9090 skynet`). It exists only here. Tunnels aren't connected at start; they're connected from the Endpoints view.
+On the machine these docs were written on, for example, there is also `skynet`: a remote vLLM box reached through an SSH tunnel (`ssh -N -L 127.0.0.1:9090:localhost:9090 skynet`). It exists only there; yours would be a tunnel to your own host, under your own name. Tunnels aren't connected at start; they're connected from the Endpoints view.
 
 ## Choosing models
 
@@ -146,7 +146,7 @@ Expect `{"status":"ok","version":"0.4.2","uptime_s":…}`.
 curl -s http://127.0.0.1:7000/api/s/relay/v1/models
 ```
 
-Lists every name you can send as `model`. A fresh install lists only `auto` until an upstream is added. Here (2026-10-21): `auto`, `skynet`, `agent` and OpenCode's free models; `gemma4-26B` appears only while an lcpp instance of it runs.
+Lists every name you can send as `model`. A fresh install lists only `auto` until an upstream is added; then `auto`, your models (`<your-model>`), and with OpenCode `agent` and its free models. An lcpp model appears only while its instance runs. (On the machine these docs were written on, for example, 2026-10-21: `auto`, `skynet`, `agent` and OpenCode's free models, plus `gemma4-26B` while its lcpp instance ran.)
 
 ```bash
 curl -s http://127.0.0.1:7000/api/s/relay/admin/endpoints
