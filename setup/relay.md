@@ -3,6 +3,16 @@ id = "relay"
 title = "LLM Relay"
 models = []
 scan = []
+summary = "LLM Relay: one OpenAI-compatible endpoint for every chat model, local or remote, with usage charts"
+gpu = false
+disk_gb = 0.35
+needs = ["uv", "npm"]
+after = []
+check = "aihub check relay"
+
+[[steps]]
+run = "aihub install relay"
+what = "makes web/backend/.venv/ from uv.lock (about 51 MB) and builds the dashboard with npm (about 290 MB of node_modules/, a few minutes)"
 -->
 
 # LLM Relay: setup
@@ -57,7 +67,11 @@ The relay's endpoints live in its database, `data/databases/relay.db` (gitignore
 - **OpenCode**: at start the relay adds an `opencode` endpoint (alias `agent`) when `OPENCODE_ENABLED` is on and it finds the Basic credential that the opencode mod mints. Without the credential it logs a warning and adds nothing.
 - **By hand**: the Endpoints view on the relay's page (any OpenAI-compatible server, optionally behind an SSH tunnel).
 
-This machine also has `skynet`: a remote vLLM box reached through an SSH tunnel (`ssh -N -L 127.0.0.1:9090:localhost:9090 skynet`). It exists only here. Tunnels aren't connected at start; they're connected from the Endpoints view.
+On this machine, for example, there is also `skynet`: a remote vLLM box reached through an SSH tunnel (`ssh -N -L 127.0.0.1:9090:localhost:9090 skynet`). It exists only here. Tunnels aren't connected at start; they're connected from the Endpoints view.
+
+## Choosing models
+
+The relay runs no model and downloads none, so it has no suggestions. Which models it lists is up to you: any OpenAI-compatible server works, local or remote. For local ones, pick models in [llama.cpp](../../lcpp/setup/llama-cpp.md) (any GGUF) or [vLLM](../../vllm/setup/vllm.md) (Hugging Face repos), and they appear here while they run; for hosted ones, add an endpoint on the page or use [OpenCode](../../opencode/setup/opencode.md)'s free models. Each model is listed under its alias, the name clients send as `model`.
 
 ## Configuration
 
