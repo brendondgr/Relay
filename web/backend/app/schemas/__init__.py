@@ -296,6 +296,8 @@ class RuntimeSettings(BaseModel):
     log_bodies: bool = False
     allow_cors: bool = True
     inject_stream_usage: bool = True
+    # AIHub plan 31.4: requests to a local engine wait for the hub's GPU slot (no AIHUB_URL: nothing waits)
+    gpu_slot: bool = True
     proxy_port: int = 4000
     retention_days: int = 30
     restart_required: bool = False
@@ -308,6 +310,7 @@ class SettingsPatch(BaseModel):
     log_bodies: bool | None = None
     allow_cors: bool | None = None
     inject_stream_usage: bool | None = None
+    gpu_slot: bool | None = None
     proxy_port: int | None = None
     retention_days: int | None = None
 

@@ -38,6 +38,7 @@ from app.services.adapters import (
     get_adapter,
 )
 from app.services.catalog import models_catalog
+from app.services.gpu_lease import THREAD_HEADER, GpuCancelled, GpuLeases, lease_from
 from app.services.telemetry import RequestRecord
 
 log = get_logger("proxy")
@@ -239,6 +240,9 @@ class ProxyService:
         # req_id -> gate release. A streamed reply holds its slot until the
         # stream ends (see ``finish``), so the registry outlives handle().
         self._slot_releases: dict[str, Callable[[], None]] = {}
+        # AIHub's GPU slot (plan 31.4): a request to a local engine holds a
+        # lease for its whole reply, given back in finish() like the gate slot.
+        self.gpu = GpuLeases()
 
     # ---- entrypoint ------------------------------------------------------
     async def handle(self, request: Request, path: str) -> Response:
@@ -363,6 +367,7 @@ class ProxyService:
         release = self._slot_releases.pop(req_id, None)
         if release is not None:
             release()
+        self.gpu.finish(req_id)
 
     async def _read_body(self, request: Request) -> bytes | None:
         """Read the request body, refusing anything over the cap.
@@ -595,6 +600,21 @@ class ProxyService:
         # the in-flight row so the live Requests view shows where it's going.
         self.live.update(record.id, {
             "endpoint_name": endpoint["name"], "model": record.model})
+
+        # A local engine waits for AIHub's GPU slot (after the admission gate):
+        # one group's GPU work at a time across every AIHub mod.
+        if self.settings.current.gpu_slot:
+            try:
+                await self.gpu.take(record.id, endpoint, record.model,
+                                    request.headers.get(THREAD_HEADER),
+                                    lease_from(request.headers))
+            except GpuCancelled as e:
+                record.status = 503
+                record.ok = False
+                record.error = f"GPU queue: {e}"
+                record.latency_ms = (time.perf_counter() - t0) * 1000
+                self.telemetry.submit(record)
+                return _upstream_error(503, f"cancelled while waiting for the GPU: {e}")
 
         return await adapter.forward(
             self, request, endpoint, path, record, body, t0)

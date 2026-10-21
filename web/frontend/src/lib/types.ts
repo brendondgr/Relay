@@ -165,6 +165,7 @@ export interface RuntimeSettings {
   log_bodies: boolean;
   allow_cors: boolean;
   inject_stream_usage: boolean;
+  gpu_slot: boolean;
   proxy_port: number;
   retention_days: number;
   restart_required: boolean;

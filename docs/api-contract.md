@@ -236,11 +236,15 @@ a working one without touching the endpoint's alias or `base_url`.
 {
   "stream_passthrough": true, "queue_requests": true, "auto_failover": true,
   "log_bodies": false, "allow_cors": true, "inject_stream_usage": true,
+  "gpu_slot": true,
   "proxy_port": 4000, "retention_days": 30, "restart_required": false
 }
 ```
 `PUT` accepts any subset. `proxy_port` is persisted but only takes effect on
-restart, which is what `restart_required` reports.
+restart, which is what `restart_required` reports. `gpu_slot` (AIHub plan
+31.4): a request to a local engine (an `openai` endpoint of kind `local` on a
+loopback URL) first takes AIHub's GPU slot and holds it until its reply ends
+(`app/services/gpu_lease.py`); off, or without `AIHUB_URL`, nothing waits.
 
 ### Request row (`/admin/stats/recent`)
 ```json

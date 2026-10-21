@@ -132,6 +132,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         task.cancel()
+        await app.state.proxy.gpu.close()
         if discovery:
             discovery.cancel()
         await app.state.tunnel_sessions.shutdown()

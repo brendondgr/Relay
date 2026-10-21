@@ -8,6 +8,12 @@ from app.db import Database
 from app.main import create_app
 
 
+@pytest.fixture(autouse=True)
+def _no_aihub(monkeypatch):
+    """No test reaches a real AIHub (its GPU queue, plan 31.4): tests that want one inject a fake."""
+    monkeypatch.delenv("AIHUB_URL", raising=False)
+
+
 @pytest.fixture
 def cfg(tmp_path) -> Config:
     return Config(
