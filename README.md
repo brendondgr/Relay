@@ -68,6 +68,8 @@ drains in-flight requests before switching, so nothing in progress is dropped.*
 
 ## Quickstart
 
+> **Under AIHub** this is the `relay` mod: `aihub install relay` builds it and the hub runs it. Setup: [setup/relay.md](setup/relay.md). The quickstart below is the old standalone DashLLM launcher.
+
 ```bash
 ./launch.sh
 ```
