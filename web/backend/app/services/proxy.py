@@ -38,7 +38,7 @@ from app.services.adapters import (
     get_adapter,
 )
 from app.services.catalog import models_catalog
-from app.services.gpu_lease import THREAD_HEADER, GpuCancelled, GpuLeases, lease_from
+from app.services.gpu_lease import THREAD_HEADER, GpuCancelled, GpuLeases, answer_within, lease_from
 from app.services.sse import collect_stream_text, parse_sse_tail
 from app.services.telemetry import RequestRecord
 
@@ -474,8 +474,22 @@ class ProxyService:
                 self.telemetry.submit(record)
                 return _upstream_error(503, f"cancelled while waiting for the GPU: {e}")
 
-        return await adapter.forward(
-            self, request, endpoint, path, record, body, t0)
+        # A caller with a short budget (AIHub's Auto judge, page screening) times the answer, not the wait
+        # for the GPU: its deadline starts here, once the slot is held (or at once, for a remote model).
+        within = answer_within(request.headers)
+        if within is None or record.stream:
+            return await adapter.forward(
+                self, request, endpoint, path, record, body, t0)
+        try:
+            return await asyncio.wait_for(adapter.forward(
+                self, request, endpoint, path, record, body, t0), within)
+        except (TimeoutError, asyncio.TimeoutError):
+            record.status = 504
+            record.ok = False
+            record.error = f"no answer within {within:g} s (after the GPU slot)"
+            record.latency_ms = (time.perf_counter() - t0) * 1000
+            self.telemetry.submit(record)
+            return _upstream_error(504, record.error)
 
     # ---- non-streaming --------------------------------------------------
     async def _buffered_response(self, resp: httpx.Response, endpoint: dict,

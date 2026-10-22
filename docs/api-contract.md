@@ -244,7 +244,9 @@ a working one without touching the endpoint's alias or `base_url`.
 restart, which is what `restart_required` reports. `gpu_slot` (AIHub plan
 31.4): a request to a local engine (an `openai` endpoint of kind `local` on a
 loopback URL) first takes AIHub's GPU slot and holds it until its reply ends
-(`app/services/gpu_lease.py`); off, or without `AIHUB_URL`, nothing waits.
+(`app/services/gpu_lease.py`); off, or without `AIHUB_URL`, nothing waits. A caller with a short budget
+(AIHub's Auto judge, page screening) sends `X-AIHub-Answer-Within: <seconds>`: a non-streamed request gets
+that long once the slot is held (at once for a remote endpoint), then a 504.
 
 ### Request row (`/admin/stats/recent`)
 ```json

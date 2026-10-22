@@ -20,9 +20,11 @@ from app.services.gpu_lease import GpuLeases, lease_spec
 from fake_gpu_hub import FakeGpuHub
 
 
-def _request(body: dict, thread: str | None = None, lease: str | None = None) -> StarletteRequest:
+def _request(body: dict, thread: str | None = None, lease: str | None = None, within: float | None = None) -> StarletteRequest:
     payload = json.dumps(body).encode()
     headers = [(b"content-type", b"application/json")]
+    if within is not None:
+        headers.append((b"x-aihub-answer-within", str(within).encode()))
     if thread:
         headers.append((b"x-aihub-thread", thread.encode()))
     if lease:
@@ -58,6 +60,8 @@ def make_engine(hub: FakeGpuHub) -> tuple[FastAPI, dict]:
                     st["held_at_last_chunk"] = len(hub.held)
                     yield "data: [DONE]\n\n"
                 return StreamingResponse(gen(), media_type="text/event-stream")
+            if body.get("slow"):
+                await asyncio.sleep(body["slow"])
             if body.get("together"):
                 try:
                     await asyncio.wait_for(st["together"].wait(), 2)
@@ -157,6 +161,35 @@ async def test_a_request_waits_while_a_comfy_job_holds_the_slot(env):
     assert resp.status_code == 200 and st["calls"] == 1
     await settle(app, hub)
     assert hub.held == {}
+
+
+async def test_answer_within_counts_from_the_slot_not_the_wait(env):
+    app, hub, st = env
+    local(app)
+    comfy = hub.hold("comfy")
+    task = asyncio.create_task(app.state.proxy.handle(_request(chat("gemma", slow=0.1), within=0.5), "chat/completions"))
+    await asyncio.sleep(0.8)                        # longer than its budget, all of it waiting for the GPU
+    assert not task.done() and st["calls"] == 0
+    await hub.release(comfy)
+    resp = await asyncio.wait_for(task, 3)
+    assert resp.status_code == 200 and st["calls"] == 1
+    await settle(app, hub)
+
+
+async def test_answer_within_runs_out_once_it_has_the_slot(env):
+    app, hub, st = env
+    local(app)
+    resp = await app.state.proxy.handle(_request(chat("gemma", slow=2), within=0.3), "chat/completions")
+    assert resp.status_code == 504 and b"after the GPU slot" in resp.body
+    await settle(app, hub)
+    assert hub.held == {}                           # the slot is given back
+
+
+def test_answer_within_header():
+    from app.services.gpu_lease import answer_within
+    assert answer_within({"x-aihub-answer-within": "3"}) == 3.0
+    assert answer_within({"x-aihub-answer-within": "nope"}) is None
+    assert answer_within({"x-aihub-answer-within": "0"}) is None and answer_within({}) is None
 
 
 async def test_a_stream_holds_the_slot_until_its_last_chunk(env):

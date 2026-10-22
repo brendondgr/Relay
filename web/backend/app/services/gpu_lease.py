@@ -31,9 +31,19 @@ from app.services.gpu_slot import GpuCancelled, GpuSlot, lease_from
 log = get_logger("gpu")
 
 THREAD_HEADER = "x-aihub-thread"
+WITHIN_HEADER = "x-aihub-answer-within"
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
-__all__ = ["GpuCancelled", "GpuLeases", "THREAD_HEADER", "lease_from", "lease_spec"]
+__all__ = ["GpuCancelled", "GpuLeases", "THREAD_HEADER", "WITHIN_HEADER", "answer_within", "lease_from", "lease_spec"]
+
+
+def answer_within(headers: Any) -> float | None:
+    """`X-AIHub-Answer-Within: <seconds>`: how long the caller gives the model once the GPU slot is held, or None."""
+    try:
+        s = float(headers.get(WITHIN_HEADER) or "")
+    except ValueError:
+        return None
+    return s if 0 < s <= 3600 else None
 
 
 def lease_spec(endpoint: dict) -> dict[str, str] | None:
