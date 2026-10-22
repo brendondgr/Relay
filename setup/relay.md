@@ -13,6 +13,11 @@ check = "aihub check relay --start"
 [[steps]]
 run = "aihub install relay"
 what = "makes web/backend/.venv/ from uv.lock (about 51 MB) and, when npm is on PATH, builds the dashboard (about 290 MB of node_modules/, a few minutes); without npm it skips the build, and the relay runs without its page"
+
+[[variants]]                    # plan 39.1: no GPU work, so one variant everywhere; tested on Linux
+accel = "cpu"
+os = ["linux", "wsl", "darwin"]
+tested = ["linux"]
 -->
 
 # LLM Relay: setup
