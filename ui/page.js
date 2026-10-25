@@ -1,4 +1,4 @@
-// LLM Relay (relay) page inside AIHub: Dashboard, Requests, Endpoints, Tunnels and Connect
+// LLM Relay (relay) page inside GAIFA: Dashboard, Requests, Endpoints, Tunnels and Connect
 // (design brief Part B2). Calls DashLLM's own admin API through ctx.call; its ECharts-shaped
 // `{dimensions, source}` datasets are converted for the §11.6 chart components here.
 import { chartCard, charts, rh } from '/mod-charts.js';

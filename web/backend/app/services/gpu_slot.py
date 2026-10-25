@@ -1,4 +1,4 @@
-"""Taking AIHub's GPU slot (plan 31.2; docs/mods.md "Taking the GPU"). The reference client: every Python mod
+"""Taking GAIFA's GPU slot (plan 31.2; docs/mods.md "Taking the GPU"). The reference client: every Python mod
 keeps an identical copy of this file (mods never import the hub), and it needs only httpx.
 
     async with gpu_slot("Image: portrait", est_s=90) as lease:
@@ -8,10 +8,10 @@ It asks the hub for the slot (`POST /api/gpu/acquire`) and waits its turn, renew
 the work runs, and gives it back on exit, on an exception and on task cancel. `on_wait(lease)` is called each
 time the hub says the lease still waits (`lease.ahead`, `lease.eta_s`), for a job's `waiting_gpu` stage.
 
-Without AIHub (no AIHUB_URL), or when the hub can't be reached, the work runs at once (`lease.state == "off"`):
+Without GAIFA (no GAIFA_URL), or when the hub can't be reached, the work runs at once (`lease.state == "off"`):
 the slot orders work, it never stops a mod from working. A lease cancelled while it waits (the queue's Cancel)
-raises `GpuCancelled`. Defaults come from the environment the hub sets: AIHUB_SERVICE_ID, and AIHUB_GPU_CLASS /
-AIHUB_GPU_GROUP from the mod's `[gpu]` table.
+raises `GpuCancelled`. Defaults come from the environment the hub sets: GAIFA_SERVICE_ID, and GAIFA_GPU_CLASS /
+GAIFA_GPU_GROUP from the mod's `[gpu]` table.
 """
 
 from __future__ import annotations
@@ -28,9 +28,9 @@ from typing import Any
 
 import httpx
 
-log = logging.getLogger("aihub.gpu_slot")
+log = logging.getLogger("gaifa.gpu_slot")
 
-HEADER = "X-AIHub-GPU-Lease"
+HEADER = "X-GAIFA-GPU-Lease"
 RENEW_S = 10.0
 POLL_S = 25.0
 
@@ -61,7 +61,7 @@ class Lease:
 
 
 def lease_from(headers: Any) -> str | None:
-    """The parent lease a caller passed down (`X-AIHub-GPU-Lease`), from request headers."""
+    """The parent lease a caller passed down (`X-GAIFA-GPU-Lease`), from request headers."""
     try:
         v = headers.get(HEADER) or headers.get(HEADER.lower())
     except AttributeError:
@@ -73,11 +73,11 @@ class GpuSlot:
     def __init__(self, hub_url: str | None = None, service: str | None = None, cls: str | None = None,
                  group: str | None = None, transport: httpx.AsyncBaseTransport | None = None,
                  renew_s: float = RENEW_S, poll_s: float = POLL_S) -> None:
-        url = hub_url if hub_url is not None else os.environ.get("AIHUB_URL", "")
+        url = hub_url if hub_url is not None else os.environ.get("GAIFA_URL", "")
         self.url = (url or "").rstrip("/") or None
-        self.service = service or os.environ.get("AIHUB_SERVICE_ID") or "mod"
-        self.cls = cls or os.environ.get("AIHUB_GPU_CLASS") or "job"
-        self.group = group or os.environ.get("AIHUB_GPU_GROUP") or None
+        self.service = service or os.environ.get("GAIFA_SERVICE_ID") or "mod"
+        self.cls = cls or os.environ.get("GAIFA_GPU_CLASS") or "job"
+        self.group = group or os.environ.get("GAIFA_GPU_GROUP") or None
         self.transport, self.renew_s, self.poll_s = transport, renew_s, poll_s
 
     def _client(self) -> httpx.AsyncClient:
@@ -120,7 +120,7 @@ class GpuSlot:
             try:
                 r = await c.post("/api/gpu/acquire", params={"wait": self.poll_s}, json=body)
             except httpx.HTTPError as e:
-                log.warning("AIHub not reachable for the GPU slot (%s); running without it", e)
+                log.warning("GAIFA not reachable for the GPU slot (%s); running without it", e)
                 lease.state, lease.id = "off", None
                 return
             if r.status_code == 404:              # an older hub: no queue

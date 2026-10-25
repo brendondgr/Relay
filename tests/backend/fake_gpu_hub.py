@@ -1,4 +1,4 @@
-"""A fake AIHub GPU queue (`/api/gpu/*`, AIHub plan 31.1) for the relay's lease tests: one slot, groups
+"""A fake GAIFA GPU queue (`/api/gpu/*`, GAIFA plan 31.1) for the relay's lease tests: one slot, groups
 share it, FIFO, long-poll acquire. Only what the relay's client uses."""
 
 import asyncio

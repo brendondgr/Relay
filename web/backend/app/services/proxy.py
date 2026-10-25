@@ -98,7 +98,7 @@ class ProxyService:
         # req_id -> gate release. A streamed reply holds its slot until the
         # stream ends (see ``finish``), so the registry outlives handle().
         self._slot_releases: dict[str, Callable[[], None]] = {}
-        # AIHub's GPU slot (plan 31.4): a request to a local engine holds a
+        # GAIFA's GPU slot (plan 31.4): a request to a local engine holds a
         # lease for its whole reply, given back in finish() like the gate slot.
         self.gpu = GpuLeases()
 
@@ -459,8 +459,8 @@ class ProxyService:
         self.live.update(record.id, {
             "endpoint_name": endpoint["name"], "model": record.model})
 
-        # A local engine waits for AIHub's GPU slot (after the admission gate):
-        # one group's GPU work at a time across every AIHub mod.
+        # A local engine waits for GAIFA's GPU slot (after the admission gate):
+        # one group's GPU work at a time across every GAIFA mod.
         if self.settings.current.gpu_slot:
             try:
                 await self.gpu.take(record.id, endpoint, record.model,
@@ -474,7 +474,7 @@ class ProxyService:
                 self.telemetry.submit(record)
                 return _upstream_error(503, f"cancelled while waiting for the GPU: {e}")
 
-        # A caller with a short budget (AIHub's Auto judge, page screening) times the answer, not the wait
+        # A caller with a short budget (GAIFA's Auto judge, page screening) times the answer, not the wait
         # for the GPU: its deadline starts here, once the slot is held (or at once, for a remote model).
         within = answer_within(request.headers)
         if within is None or record.stream:

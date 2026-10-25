@@ -1,11 +1,11 @@
-"""The AIHub routes: /admin/status and the LLM traffic widget."""
+"""The GAIFA routes: /admin/status and the LLM traffic widget."""
 
 import time
 
 from test_stats import _seed
 
 
-def test_status_has_the_aihub_shape(client, app):
+def test_status_has_the_gaifa_shape(client, app):
     now = time.time()
     _seed(app.state.db, now - 30, tin=100, tout=50, ttft=120)
     _seed(app.state.db, now - 40, tin=10, tout=5, ttft=80)

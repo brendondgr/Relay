@@ -19,7 +19,7 @@ start_timeout_s = 30
 stop_timeout_s = 30
 restart = "on-failure"
 after = ["opencode"]
-install = "aihub-install.sh"
+install = "gaifa-install.sh"
 
 [run.env]
 RELAY_HOST = "127.0.0.1"

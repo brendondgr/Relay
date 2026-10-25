@@ -1,11 +1,11 @@
-"""Routes for AIHub (its architecture §4.6 and brief §11.7): the status AIHub polls for the
-Overview tile, and the "LLM traffic" dashboard widget. Both work without AIHub too."""
+"""Routes for GAIFA (its architecture §4.6 and brief §11.7): the status GAIFA polls for the
+Overview tile, and the "LLM traffic" dashboard widget. Both work without GAIFA too."""
 
 import time
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-router = APIRouter(tags=["aihub"])
+router = APIRouter(tags=["gaifa"])
 WIDGET_RANGES = ("24h", "7d")
 
 
@@ -49,7 +49,7 @@ def _ts(label: str) -> float:
 
 @router.get("/admin/hub/widgets/traffic")
 async def traffic_widget(request: Request, range: str = Query("24h", description="24h or 7d")):
-    """Requests and tokens per hour, plus p50 TTFT, as AIHub WidgetData."""
+    """Requests and tokens per hour, plus p50 TTFT, as GAIFA WidgetData."""
     if range not in WIDGET_RANGES:
         raise HTTPException(422, f"range must be one of {list(WIDGET_RANGES)}")
     stats = request.app.state.stats

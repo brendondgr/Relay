@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the relay's venv (web/backend/.venv) for AIHub (run by `aihub install relay`). The
+# Builds the relay's venv (web/backend/.venv) for GAIFA (run by `gaifa install relay`). The
 # dashboard (web/frontend/dist) is built with npm; run `npm ci && npm run build` in web/frontend
 # after changing it.
 set -euo pipefail

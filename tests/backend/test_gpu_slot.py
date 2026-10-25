@@ -1,6 +1,6 @@
-"""AIHub plan 31.4: a request to a local engine takes AIHub's GPU slot for its whole reply.
+"""GAIFA plan 31.4: a request to a local engine takes GAIFA's GPU slot for its whole reply.
 
-Against a fake AIHub queue (fake_gpu_hub.py) and a fake engine on 127.0.0.1: requests to one engine
+Against a fake GAIFA queue (fake_gpu_hub.py) and a fake engine on 127.0.0.1: requests to one engine
 share the slot; a request waits while another group (a ComfyUI job) holds it; a stream holds it until
 its last chunk; remote endpoints never take it; an upstream error and a client that goes away give it
 back; the `gpu_slot` setting turns it off."""
@@ -24,11 +24,11 @@ def _request(body: dict, thread: str | None = None, lease: str | None = None, wi
     payload = json.dumps(body).encode()
     headers = [(b"content-type", b"application/json")]
     if within is not None:
-        headers.append((b"x-aihub-answer-within", str(within).encode()))
+        headers.append((b"x-gaifa-answer-within", str(within).encode()))
     if thread:
-        headers.append((b"x-aihub-thread", thread.encode()))
+        headers.append((b"x-gaifa-thread", thread.encode()))
     if lease:
-        headers.append((b"x-aihub-gpu-lease", lease.encode()))
+        headers.append((b"x-gaifa-gpu-lease", lease.encode()))
     scope = {"type": "http", "method": "POST", "path": "/v1/chat/completions", "headers": headers, "query_string": b""}
 
     async def receive():
@@ -187,9 +187,9 @@ async def test_answer_within_runs_out_once_it_has_the_slot(env):
 
 def test_answer_within_header():
     from app.services.gpu_lease import answer_within
-    assert answer_within({"x-aihub-answer-within": "3"}) == 3.0
-    assert answer_within({"x-aihub-answer-within": "nope"}) is None
-    assert answer_within({"x-aihub-answer-within": "0"}) is None and answer_within({}) is None
+    assert answer_within({"x-gaifa-answer-within": "3"}) == 3.0
+    assert answer_within({"x-gaifa-answer-within": "nope"}) is None
+    assert answer_within({"x-gaifa-answer-within": "0"}) is None and answer_within({}) is None
 
 
 async def test_a_stream_holds_the_slot_until_its_last_chunk(env):
@@ -282,5 +282,5 @@ async def test_the_setting_turns_it_off(env):
 
 
 async def test_no_hub_no_wait(cfg, oc_cfg, monkeypatch):
-    monkeypatch.delenv("AIHUB_URL", raising=False)
+    monkeypatch.delenv("GAIFA_URL", raising=False)
     assert GpuLeases().enabled is False

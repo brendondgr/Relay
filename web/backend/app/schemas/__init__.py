@@ -296,7 +296,7 @@ class RuntimeSettings(BaseModel):
     log_bodies: bool = False
     allow_cors: bool = True
     inject_stream_usage: bool = True
-    # AIHub plan 31.4: requests to a local engine wait for the hub's GPU slot (no AIHUB_URL: nothing waits)
+    # GAIFA plan 31.4: requests to a local engine wait for the hub's GPU slot (no GAIFA_URL: nothing waits)
     gpu_slot: bool = True
     proxy_port: int = 4000
     retention_days: int = 30

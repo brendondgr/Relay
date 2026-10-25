@@ -1,4 +1,4 @@
-"""AIHub's GPU slot per request to a local engine (AIHub plan 31.4).
+"""GAIFA's GPU slot per request to a local engine (GAIFA plan 31.4).
 
 A request routed to an LLM server on this machine (an OpenAI-protocol endpoint whose kind is ``local``
 and whose URL is loopback: lcpp's llama-servers, vllm) takes an ``interactive`` lease from the hub
@@ -9,12 +9,12 @@ ComfyUI image, a Whisper transcription) waits for them, and they wait for it. Re
 tunnel such as skynet, or any other host) and agent protocols (OpenCode) never take it.
 
 The lease's ``service`` is the mod that owns the endpoint (``lcpp``, ``vllm``) or ``relay``; its
-``label`` is the model; its ``thread`` is the caller's ``X-AIHub-Thread`` (the agent sends its chat
+``label`` is the model; its ``thread`` is the caller's ``X-GAIFA-Thread`` (the agent sends its chat
 id, so it can show "Waiting for the GPU" on the turn). A caller that already holds the slot (a mod's job
-asking a local model for something) passes its lease in ``X-AIHub-GPU-Lease`` and its request runs
+asking a local model for something) passes its lease in ``X-GAIFA-GPU-Lease`` and its request runs
 under it instead of waiting behind itself.
 
-Without AIHub (no AIHUB_URL), or with the ``gpu_slot`` setting off, nothing waits.
+Without GAIFA (no GAIFA_URL), or with the ``gpu_slot`` setting off, nothing waits.
 """
 
 from __future__ import annotations
@@ -30,15 +30,15 @@ from app.services.gpu_slot import GpuCancelled, GpuSlot, lease_from
 
 log = get_logger("gpu")
 
-THREAD_HEADER = "x-aihub-thread"
-WITHIN_HEADER = "x-aihub-answer-within"
+THREAD_HEADER = "x-gaifa-thread"
+WITHIN_HEADER = "x-gaifa-answer-within"
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 __all__ = ["GpuCancelled", "GpuLeases", "THREAD_HEADER", "WITHIN_HEADER", "answer_within", "lease_from", "lease_spec"]
 
 
 def answer_within(headers: Any) -> float | None:
-    """`X-AIHub-Answer-Within: <seconds>`: how long the caller gives the model once the GPU slot is held, or None."""
+    """`X-GAIFA-Answer-Within: <seconds>`: how long the caller gives the model once the GPU slot is held, or None."""
     try:
         s = float(headers.get(WITHIN_HEADER) or "")
     except ValueError:

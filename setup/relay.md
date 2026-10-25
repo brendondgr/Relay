@@ -1,4 +1,4 @@
-<!-- aihub-setup
+<!-- gaifa-setup
 id = "relay"
 title = "LLM Relay"
 models = []
@@ -8,10 +8,10 @@ gpu = false
 disk_gb = 0.35
 needs = ["uv"]
 after = []
-check = "aihub check relay --start"
+check = "gaifa check relay --start"
 
 [[steps]]
-run = "aihub install relay"
+run = "gaifa install relay"
 what = "makes web/backend/.venv/ from uv.lock (about 51 MB) and, when npm is on PATH, builds the dashboard (about 290 MB of node_modules/, a few minutes); without npm it skips the build, and the relay runs without its page"
 
 [[variants]]                    # plan 39.1: no GPU work, so one variant everywhere; tested on Linux
@@ -26,7 +26,7 @@ The format is in [docs/mods.md §9](../../../docs/mods.md#9-setup-docs).
 
 ## What it is
 
-The `relay` mod (port 4000) is the LLM Relay, formerly DashLLM: an OpenAI-compatible proxy with routing, SSH tunnels and usage analytics. It runs no model itself. Every chat model in AIHub goes through it: the agent, the Auto judge and Chat call `http://127.0.0.1:4000/v1`, and the `lcpp` and `vllm` mods publish their running models to it. It has two parts: a FastAPI backend in `web/backend/.venv/`, and an Astro + React dashboard built once into `web/frontend/dist/`, which the backend serves at `/` (the mod's page in AIHub).
+The `relay` mod (port 4000) is the LLM Relay, formerly DashLLM: an OpenAI-compatible proxy with routing, SSH tunnels and usage analytics. It runs no model itself. Every chat model in GAIFA goes through it: the agent, the Auto judge and Chat call `http://127.0.0.1:4000/v1`, and the `lcpp` and `vllm` mods publish their running models to it. It has two parts: a FastAPI backend in `web/backend/.venv/`, and an Astro + React dashboard built once into `web/frontend/dist/`, which the backend serves at `/` (the mod's page in GAIFA).
 
 ## Tested with
 
@@ -44,17 +44,17 @@ Read from this machine on 2026-10-21:
 ## Prerequisites
 
 - [The hub](../../../docs/setup/hub.md), and `uv` on `PATH`.
-- Node 22 and npm, for the dashboard build ([host.md §3](../../../docs/setup/host.md#3-packages)). They're optional, so the block's `needs` leaves npm out: without npm, `aihub install relay` skips the build, and the backend installs and runs (the API, `/v1` and every endpoint work); only the page is missing until you build it (below).
+- Node 22 and npm, for the dashboard build ([host.md §3](../../../docs/setup/host.md#3-packages)). They're optional, so the block's `needs` leaves npm out: without npm, `gaifa install relay` skips the build, and the backend installs and runs (the API, `/v1` and every endpoint work); only the page is missing until you build it (below).
 - No GPU, no models, no account.
 - Optional: [OpenCode](../../opencode/setup/opencode.md), installed first, if you want the `agent` endpoint.
 
 ## Install
 
 ```bash
-aihub install relay
+gaifa install relay
 ```
 
-Runs `aihub-install.sh`:
+Runs `gaifa-install.sh`:
 1. `uv sync --python 3.12` in `web/backend/` makes `.venv/` from `uv.lock` (about 51 MB).
 2. If `web/frontend/dist/` doesn't exist and `npm` is on `PATH`: `npm ci && npm run build` in `web/frontend/` (about 290 MB of `node_modules/` from the npm registry; the built `dist/` is small).
 
@@ -87,7 +87,7 @@ With no local LLM (or no GPU), a hosted API gives Chat and the agent a model. Th
 | name | `name` | any label, such as `openrouter` |
 | type | `server_type` | **OpenAI-compat** (`openai`); it's only a label, `protocol` (`openai`, the default) is what counts |
 | URL | `base_url` | the provider's base URL, with `/v1`: `https://api.openai.com/v1` (OpenAI) or `https://openrouter.ai/api/v1` (OpenRouter). The relay adds `/models` and `/chat/completions` to it |
-| api key | `upstream_key` | your key from the provider. The relay sends it upstream as `Authorization: Bearer <key>`; callers of the relay never see it, and the API only reports `has_key`. It's kept as plain text in `data/databases/relay.db` (and so in `aihub backup`'s archive) |
+| api key | `upstream_key` | your key from the provider. The relay sends it upstream as `Authorization: Bearer <key>`; callers of the relay never see it, and the API only reports `has_key`. It's kept as plain text in `data/databases/relay.db` (and so in `gaifa backup`'s archive) |
 | available models | `available_models` | the provider's model ids you want, one per line: each is listed in the relay's `/v1/models` and reaches this endpoint with that exact id. Leave none and only the alias is listed |
 | alias | `alias` | optional: one extra name for the endpoint; a request for it goes to `model_override` (API only) or else the first model the provider lists, so prefer naming models |
 
@@ -121,7 +121,7 @@ Expect `201` with the endpoint (`"kind": "remote_direct"`, `"has_key": true`, `"
 | `RELAY_LOG_DIR` | `web/backend/logs` | the relay's own JSON logs |
 | `OPENCODE_AUTH_FILE` | `services/opencode/opencode-auth.env` | the credential the opencode mod mints |
 
-`.env` in this folder (gitignored) is optional: copy `.env.example` only to change something. The backend reads it directly too. The keys that matter under AIHub:
+`.env` in this folder (gitignored) is optional: copy `.env.example` only to change something. The backend reads it directly too. The keys that matter under GAIFA:
 
 | Key | Required | Meaning |
 |---|---|---|
@@ -136,7 +136,7 @@ Expect `201` with the endpoint (`"kind": "remote_direct"`, `"has_key": true`, `"
 ## Check it works
 
 ```bash
-aihub check relay --start
+gaifa check relay --start
 ```
 
 Starts the relay if it's stopped (a stopped mod's live checks are skipped), then checks it. Expect `relay: all checks passed`. One `warn` line is expected today: `page calls fetch(); use ctx.call / ctx.api …`.
@@ -170,12 +170,12 @@ Expect `189 passed` (2026-10-21).
 ## What to look for
 
 - **No models in Chat.** The relay has no upstream yet: start an lcpp instance, load a vllm profile, or add an endpoint on the page.
-- **The `agent` endpoint is missing.** OpenCode wasn't running when the relay started, so no credential was found. Start `opencode`, then `aihub restart relay` (the relay starts after opencode).
+- **The `agent` endpoint is missing.** OpenCode wasn't running when the relay started, so no credential was found. Start `opencode`, then `gaifa restart relay` (the relay starts after opencode).
 - **The page is blank.** `web/frontend/dist/` wasn't built (no npm during install). Run the build above.
-- **Don't bind it to `0.0.0.0`.** There is no API key, and the OpenCode endpoint runs shell commands for whoever calls it. AIHub keeps it on `127.0.0.1`.
-- `web/backend/data/relay.db` is the standalone DashLLM's default database path. Under AIHub it isn't used (`RELAY_DB_PATH` points to `data/databases/`), but the unit tests may touch it.
+- **Don't bind it to `0.0.0.0`.** There is no API key, and the OpenCode endpoint runs shell commands for whoever calls it. GAIFA keeps it on `127.0.0.1`.
+- `web/backend/data/relay.db` is the standalone DashLLM's default database path. Under GAIFA it isn't used (`RELAY_DB_PATH` points to `data/databases/`), but the unit tests may touch it.
 
 ## Known gaps
 
-- The endpoints of an existing machine aren't exported or restored by anything but `aihub backup` (it copies `data/databases/`).
-- `aihub install relay` doesn't check for Node; without it the dashboard is silently skipped.
+- The endpoints of an existing machine aren't exported or restored by anything but `gaifa backup` (it copies `data/databases/`).
+- `gaifa install relay` doesn't check for Node; without it the dashboard is silently skipped.
