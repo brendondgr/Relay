@@ -241,11 +241,11 @@ a working one without touching the endpoint's alias or `base_url`.
 }
 ```
 `PUT` accepts any subset. `proxy_port` is persisted but only takes effect on
-restart, which is what `restart_required` reports. `gpu_slot` (AIHub plan
+restart, which is what `restart_required` reports. `gpu_slot` (GAIFA plan
 31.4): a request to a local engine (an `openai` endpoint of kind `local` on a
-loopback URL) first takes AIHub's GPU slot and holds it until its reply ends
-(`app/services/gpu_lease.py`); off, or without `AIHUB_URL`, nothing waits. A caller with a short budget
-(AIHub's Auto judge, page screening) sends `X-AIHub-Answer-Within: <seconds>`: a non-streamed request gets
+loopback URL) first takes GAIFA's GPU slot and holds it until its reply ends
+(`app/services/gpu_lease.py`); off, or without `GAIFA_URL`, nothing waits. A caller with a short budget
+(GAIFA's Auto judge, page screening) sends `X-GAIFA-Answer-Within: <seconds>`: a non-streamed request gets
 that long once the slot is held (at once for a remote endpoint), then a 504.
 
 ### Request row (`/admin/stats/recent`)
@@ -324,9 +324,9 @@ reach the port. No API key, no admin token, no accounts, no sessions.
   cap what an agent turn can do on the host it runs on — see
   [deployment.md](deployment.md).
 
-## AIHub routes
+## GAIFA routes
 
-Added when the relay moved into AIHub (`services/relay`, AIHub plan Phase 9); `app/routes/admin_hub.py`. Both work without AIHub too.
+Added when the relay moved into GAIFA (`services/relay`, GAIFA plan Phase 9); `app/routes/admin_hub.py`. Both work without GAIFA too.
 
-- `GET /admin/status` → `{loaded: null, busy, stats}`: AIHub's status shape (its architecture §4.6). `stats` is "Requests today" and "Tokens today" (`reset: "daily"`, from local midnight), "p50 TTFT" over 24 h (`null` when no streamed request had a first token), and "Endpoints" as `"healthy/enabled"`. `busy` is any request in flight.
-- `GET /admin/hub/widgets/traffic?range=24h|7d` → AIHub `WidgetData`: `t` (unix seconds per bucket), series `Requests`, `Tokens` (right axis) and `p50 TTFT (ms)` (right axis). Any other range is 422.
+- `GET /admin/status` → `{loaded: null, busy, stats}`: GAIFA's status shape (its architecture §4.6). `stats` is "Requests today" and "Tokens today" (`reset: "daily"`, from local midnight), "p50 TTFT" over 24 h (`null` when no streamed request had a first token), and "Endpoints" as `"healthy/enabled"`. `busy` is any request in flight.
+- `GET /admin/hub/widgets/traffic?range=24h|7d` → GAIFA `WidgetData`: `t` (unix seconds per bucket), series `Requests`, `Tokens` (right axis) and `p50 TTFT (ms)` (right axis). Any other range is 422.

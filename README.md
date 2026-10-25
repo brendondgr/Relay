@@ -52,15 +52,15 @@ slower, which I could not see before.
   the llama.cpp launcher on the same machine, registers each server it starts
   as `lcpp:<port>`. Those endpoints are marked *managed* on the Endpoints
   screen. See [deployment.md](docs/deployment.md).
-- **AIHub's GPU slot** — a request to a model server on this machine (an
+- **GAIFA's GPU slot** — a request to a model server on this machine (an
   `openai` endpoint of kind `local` on a loopback URL: lcpp, vllm) first takes
-  AIHub's GPU lease (`interactive`, grouped by the endpoint's registration
+  GAIFA's GPU lease (`interactive`, grouped by the endpoint's registration
   key, so requests to one engine still run together) and holds it until its
   reply ends, a stream until its last chunk (`app/services/gpu_lease.py`,
-  `gpu_slot.py` is AIHub's reference client, a copy). Remote endpoints and
-  OpenCode never take it. The caller's `X-AIHub-Thread` names its chat on the
-  lease; a caller already holding the slot passes `X-AIHub-GPU-Lease` and runs
-  under it. Off with the `gpu_slot` setting, or without `AIHUB_URL`.
+  `gpu_slot.py` is GAIFA's reference client, a copy). Remote endpoints and
+  OpenCode never take it. The caller's `X-GAIFA-Thread` names its chat on the
+  lease; a caller already holding the slot passes `X-GAIFA-GPU-Lease` and runs
+  under it. Off with the `gpu_slot` setting, or without `GAIFA_URL`.
 - **Dashboard** — Astro + React + ECharts, fed by an ECharts-shaped stats API
   (`dimensions`/`source` payloads) backed by hourly rollups.
 
@@ -77,7 +77,7 @@ drains in-flight requests before switching, so nothing in progress is dropped.*
 
 ## Quickstart
 
-> **Under AIHub** this is the `relay` mod: `aihub install relay` builds it and the hub runs it. Setup: [setup/relay.md](setup/relay.md). The quickstart below is the old standalone DashLLM launcher.
+> **Under GAIFA** this is the `relay` mod: `gaifa install relay` builds it and the hub runs it. Setup: [setup/relay.md](setup/relay.md). The quickstart below is the old standalone DashLLM launcher.
 
 ```bash
 ./launch.sh
