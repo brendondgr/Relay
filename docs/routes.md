@@ -43,6 +43,8 @@ No `/admin/*` route is authenticated — there is no admin plane. See
 | DELETE | `/admin/endpoints/{eid}` | remove → 204 |
 | POST | `/admin/endpoints/{eid}/activate` | hot-swap: pin as active → `RouterState` |
 | POST | `/admin/endpoints/{eid}/test` | probe now → `{ok, latency_ms, models[], error}`; also feeds the health machine |
+| GET | `/admin/endpoints/{eid}/models` | the endpoint's own model list, read from it (cached 10 min; `?refresh=1` reads it again): `{endpoint, alias, ts, error, hide_filter, models: [{id, display_name, context_length, max_output, tools, vision, reasoning, effort, thinking_types, hidden}]}` ([cloud.md](cloud.md)) |
+| PATCH | `/admin/endpoints/{eid}/models` | `{hidden?: [ids], hide_filter?: bool}`: which listed models the catalog leaves out |
 | GET | `/admin/endpoints/{eid}/facts` | model facts `{endpoint_id, model, meta, detected, checked_ts}` for the upstream model (or `?model=`); `?refresh=1` reads the upstream again now |
 | GET | `/admin/endpoints/health` | pool snapshot + currently resolved id |
 | GET/PUT | `/admin/router` | policy (`manual`\|`priority`) + pin + resolved target |
@@ -129,7 +131,7 @@ own (lcpp). See `services/registrations.py` for matching and adoption.
 | `/by-model` | Model breakdown |
 | `/by-endpoint` | Endpoint breakdown bars |
 | `/latency` | TTFT / tok-per-sec trend |
-| `/recent?limit=90` | Requests screen table (in-flight rows first) |
+| `/recent?limit=90[&group=]` | Requests screen table (in-flight rows first); `group` = local, remote, cloud or agent |
 | `/live` | In-flight gauge + concurrency series |
 
 Common query params: `window` ∈ {`1h`,`24h`,`7d`,`30d`,`1y`,`all`} or

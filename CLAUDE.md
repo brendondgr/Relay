@@ -146,9 +146,14 @@ backend changes and `npm run build` + `relay restart` picks up frontend ones.
   `app/services/adapters/` and register it in that package's `__init__`;
   `protocol` on `endpoints` is the only dispatch key (`kind` gets overwritten,
   `server_type` is cosmetic). Implementing `probe` is what keeps `health.py`
-  from needing a change. Non-`openai` protocols are alias-only — `_eligible`,
-  the manual pin, and the first-endpoint auto-pin in `router.py` all exclude
-  them, and there are tests asserting each.
+  from needing a change. Non-`openai` protocols and `cloud` endpoints are
+  alias-only (`router.alias_only`) — `_eligible`, the manual pin, and the
+  first-endpoint auto-pin in `router.py` all exclude them, and there are tests
+  asserting each. A protocol relay translates (anthropic, gemini) subclasses
+  `adapters/translated.py` and only yields events; it talks to the provider
+  through the provider's official SDK, and its tests use the real SDK against
+  `tests/backend/fake_providers.py`. Never add a table of which model takes
+  which parameter: send it, and drop what the model's 400 names (docs/cloud.md).
 - **Registrations are owned by their caller, not the dashboard.**
   `services/registrations.py` upserts by `external_key`. Failing that, it
   *adopts* an unowned endpoint with the same `base_url`, keeping its id (so

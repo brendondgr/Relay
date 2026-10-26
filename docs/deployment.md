@@ -38,6 +38,7 @@ exists (`app/config.py` points at it explicitly), and so is the environment.
 | `RELAY_PORT` | `4000` | proxy/dashboard port (also persisted via Settings) |
 | `RELAY_DB_PATH` | `web/backend/data/relay.db` | SQLite database |
 | `RELAY_LOG_DIR` | `web/backend/logs` | rotating JSON-lines logs |
+| `RELAY_CLOUD_REQUIRES_PURPOSE` | `false` | a cloud endpoint answers only requests sending `X-GAIFA-Purpose: chat` (GAIFA sets it; [cloud.md](cloud.md)) |
 | `RELAY_LOG_LEVEL` | `INFO` | log verbosity |
 | `RELAY_PROBE_INTERVAL` | `15` | seconds between active health probes |
 | `RELAY_PROBE_TIMEOUT` | `5` | probe timeout |

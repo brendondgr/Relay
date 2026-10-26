@@ -46,6 +46,12 @@ slower, which I could not see before.
   registered automatically at boot; relay translates OpenAI chat requests into
   agent sessions, and every free model the server offers is individually
   addressable. See [docs/opencode.md](docs/opencode.md).
+- **Cloud providers** — Claude, OpenAI and Gemini as endpoints from a preset
+  and a key. Their model lists are read live from the providers, and each
+  model is reachable as `<alias>/<model>` (`claude/claude-opus-5-5`). Claude
+  and Gemini are translated to and from OpenAI's chat format through their
+  official SDKs, with tool calls, images, thinking, and the reasoning state a
+  provider needs back on the next turn. See [docs/cloud.md](docs/cloud.md).
 - **Registrations** — a program that starts model servers on its own can
   publish and withdraw them idempotently by key (`PUT/DELETE
   /admin/registrations/{key}`). [lcpp](https://github.com/brendondgr/LLMs),
@@ -182,6 +188,7 @@ Against live model servers:
 | [routes.md](docs/routes.md) | Every HTTP route |
 | [data-flow.md](docs/data-flow.md) | Hot path, poll loops, control-plane writes, logging |
 | [opencode.md](docs/opencode.md) | Fronting an OpenCode agent server: setup, the free-model policy, gotchas |
+| [cloud.md](docs/cloud.md) | Claude, OpenAI and Gemini behind the same `/v1`: presets, live model lists, `<alias>/<model>`, what's translated, `reasoning_details` |
 | [frontend.md](docs/frontend.md) | Component map, design tokens, chart conventions |
 | [deployment.md](docs/deployment.md) | Single-process production, env vars, systemd, security posture |
 | [plans/](docs/plans/) | Design records from before the OpenCode work shipped. Historical — kept as written, not updated |
