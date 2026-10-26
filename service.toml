@@ -27,6 +27,7 @@ RELAY_PORT = "{port}"
 RELAY_DB_PATH = "{databases}/relay.db"
 RELAY_LOG_DIR = "{service_dir}/web/backend/logs"
 OPENCODE_AUTH_FILE = "{root}/services/opencode/opencode-auth.env"
+RELAY_CLOUD_REQUIRES_PURPOSE = "1"   # GAIFA plan llm-servers 1.7: cloud models answer only chats (X-GAIFA-Purpose: chat)
 
 [ui]
 page = "ui/page.js"

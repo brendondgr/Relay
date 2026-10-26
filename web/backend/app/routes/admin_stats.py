@@ -59,8 +59,9 @@ async def latency(request: Request, p: dict = Depends(_params)):
 
 
 @router.get("/recent")
-async def recent(request: Request, limit: int = 90):
-    return await request.app.state.stats.recent(limit)
+async def recent(request: Request, limit: int = 90, group: str | None = None):
+    """The latest requests; `group` = local, remote, cloud or agent keeps one kind of server."""
+    return await request.app.state.stats.recent(limit, group)
 
 
 @router.get("/live")

@@ -549,10 +549,14 @@ class StatsService:
             "source": source,
         }
 
-    async def recent(self, limit: int = 90) -> dict:
+    async def recent(self, limit: int = 90, group: str | None = None) -> dict:
         limit = min(limit, 500)
-        db_rows = await self.db.aquery(
-            "SELECT * FROM requests ORDER BY ts DESC LIMIT ?", (limit,))
+        if group:
+            db_rows = await self.db.aquery(
+                "SELECT * FROM requests WHERE grp = ? ORDER BY ts DESC LIMIT ?", (group, limit))
+        else:
+            db_rows = await self.db.aquery(
+                "SELECT * FROM requests ORDER BY ts DESC LIMIT ?", (limit,))
         rows = []
         for info in sorted(self.live.in_flight.values(),
                            key=lambda r: -r.get("ts", 0)):
@@ -577,7 +581,7 @@ class StatsService:
                     "error", "prompt_tokens", "completion_tokens",
                     "total_tokens", "ttft_ms", "latency_ms",
                     "tokens_per_sec", "cost_usd", "temperature",
-                    "max_tokens")},
+                    "max_tokens", "grp", "cached_tokens", "cache_write_tokens")},
                 "stream": bool(r.get("stream")),
                 "ok": bool(r.get("ok")),
                 "state": "done" if r.get("ok") else "error",

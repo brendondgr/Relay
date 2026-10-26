@@ -37,7 +37,9 @@ from app.services.adapters import (
     UpstreamSaturated as _UpstreamSaturated,
     get_adapter,
 )
-from app.services.catalog import models_catalog
+from app.services.catalog import group, models_catalog
+
+PURPOSE_HEADER = "X-GAIFA-Purpose"
 from app.services.gpu_lease import THREAD_HEADER, GpuCancelled, GpuLeases, answer_within, lease_from
 from app.services.sse import collect_stream_text, parse_sse_tail
 from app.services.telemetry import RequestRecord
@@ -82,8 +84,10 @@ class ProxyService:
     def __init__(self, http: httpx.AsyncClient, router, telemetry, live,
                  settings, max_concurrency: int = 64,
                  queue_limit: int = 512, queue_timeout: float = 30.0,
-                 max_body_bytes: int = 8 * 1024 * 1024, facts=None):
+                 max_body_bytes: int = 8 * 1024 * 1024, facts=None,
+                 cloud_requires_purpose: bool = False):
         self.http = http
+        self.cloud_requires_purpose = cloud_requires_purpose
         # services/model_facts.ModelFacts; None leaves every meta unknown.
         self.facts = facts
         # services/discovery.Discovery (set by main): listed models, and what an
@@ -454,6 +458,19 @@ class ProxyService:
                 501, f"endpoint {endpoint['name']!r} speaks {adapter.name}, "
                 f"which does not implement {record.route}")
 
+        record.grp = group(endpoint)
+        # Paid providers are for chats (GAIFA plan llm-servers 1.7): the judge,
+        # screening and other background callers never send this header.
+        if (endpoint.get("kind") == "cloud" and self.cloud_requires_purpose
+                and request.headers.get(PURPOSE_HEADER, "").strip().lower() != "chat"):
+            record.status, record.ok = 403, False
+            record.error = "cloud models are for chats only"
+            record.latency_ms = (time.perf_counter() - t0) * 1000
+            self.telemetry.submit(record)
+            return JSONResponse(status_code=403, content={"error": {
+                "message": "cloud models are for chats only: a request to a cloud endpoint must send "
+                           f"{PURPOSE_HEADER}: chat", "type": "cloud_not_allowed", "code": 403}})
+
         log.info("forwarding", extra={"data": {
             "id": record.id, "route": record.route, "method": request.method,
             "endpoint": endpoint["name"], "model": record.model,
@@ -637,6 +654,7 @@ class ProxyService:
             record.prompt_tokens = usage.get("prompt_tokens")
             record.completion_tokens = usage.get("completion_tokens")
             record.total_tokens = usage.get("total_tokens")
+            record.cached_tokens = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
         elif chunk_count:
             # no usage from upstream: approximate one token per SSE event
             record.completion_tokens = chunk_count

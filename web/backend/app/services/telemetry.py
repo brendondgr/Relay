@@ -88,6 +88,9 @@ class RequestRecord(BaseModel):
     cost_usd: float | None = None
     temperature: float | None = None
     max_tokens: int | None = None
+    grp: str | None = None                 # local, remote, cloud, agent (catalog.group)
+    cached_tokens: int | None = None       # prompt tokens read from the provider's cache
+    cache_write_tokens: int | None = None  # prompt tokens written to it (Anthropic bills them apart)
     # bodies are only persisted when the log_bodies setting is on
     prompt_body: str | None = None
     completion_body: str | None = None
@@ -97,8 +100,9 @@ _INSERT = """
 INSERT OR REPLACE INTO requests (
   id, ts, endpoint_id, endpoint_name, route, model, client_key, stream,
   status, ok, error, prompt_tokens, completion_tokens, total_tokens,
-  ttft_ms, latency_ms, tokens_per_sec, cost_usd, temperature, max_tokens
-) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  ttft_ms, latency_ms, tokens_per_sec, cost_usd, temperature, max_tokens,
+  grp, cached_tokens, cache_write_tokens
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 """
 
 _INSERT_BODY = (
@@ -112,7 +116,7 @@ def _row(r: RequestRecord) -> tuple:
         r.client_key, int(r.stream), r.status, int(r.ok), r.error,
         r.prompt_tokens, r.completion_tokens, r.total_tokens, r.ttft_ms,
         r.latency_ms, r.tokens_per_sec, r.cost_usd, r.temperature,
-        r.max_tokens,
+        r.max_tokens, r.grp, r.cached_tokens, r.cache_write_tokens,
     )
 
 

@@ -109,6 +109,9 @@ class TranslatedAdapter(UpstreamAdapter):
 
     @staticmethod
     def _record_usage(record: RequestRecord, u: dict) -> None:
+        details = u.get("prompt_tokens_details") or {}
+        record.cached_tokens = details.get("cached_tokens")
+        record.cache_write_tokens = details.get("cache_creation_tokens")
         record.prompt_tokens = u["prompt_tokens"]
         record.completion_tokens = u["completion_tokens"]
         record.total_tokens = u["total_tokens"]

@@ -58,6 +58,9 @@ class Config(BaseSettings):
     # Hard cap on an inbound request body. `Request.body()` is unbounded, so
     # without this one large POST is a memory incident.
     max_body_bytes: int = 8 * 1024 * 1024
+    # GAIFA sets it (plan llm-servers 1.7): a request to a cloud endpoint must
+    # say `X-GAIFA-Purpose: chat`, so only chats reach paid providers.
+    cloud_requires_purpose: bool = False
 
     # Upstream HTTP connection pool. Sized from max_concurrency at boot (see
     # main.lifespan) unless set explicitly: a pool smaller than the gate lets

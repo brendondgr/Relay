@@ -243,6 +243,10 @@ class Database:
             self._conn.execute("ALTER TABLE endpoints ADD COLUMN hidden_models TEXT")
         if "hide_filter" not in cols:
             self._conn.execute("ALTER TABLE endpoints ADD COLUMN hide_filter INTEGER NOT NULL DEFAULT 1")
+        rcols = {r[1] for r in self._conn.execute("PRAGMA table_info(requests)")}
+        for col, kind in (("grp", "TEXT"), ("cached_tokens", "INTEGER"), ("cache_write_tokens", "INTEGER")):
+            if col not in rcols:      # GAIFA plan llm-servers 1.7
+                self._conn.execute(f"ALTER TABLE requests ADD COLUMN {col} {kind}")
         self._conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_endpoints_external_key"
             " ON endpoints(external_key) WHERE external_key IS NOT NULL")

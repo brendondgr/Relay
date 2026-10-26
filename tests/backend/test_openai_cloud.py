@@ -86,3 +86,56 @@ def test_a_local_server_gets_the_body_unchanged(relay, fake):
 def test_cloud_body_leaves_non_json_alone():
     assert cloud_body(b"not json") == b"not json"
     assert json.loads(cloud_body(b'{"max_completion_tokens": 3, "max_tokens": 9}')) == {"max_completion_tokens": 3, "max_tokens": 9}
+
+
+# ---- chats only, and the telemetry (GAIFA plan llm-servers 1.7) ------------------------------------------
+
+@pytest.fixture
+def chats_only(cfg, oc_cfg, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    cfg.cloud_requires_purpose = True
+    with TestClient(create_app(cfg, oc_cfg)) as c:
+        async def no_probe(eid):
+            return None
+        monkeypatch.setattr(c.app.state.prober, "_probe", no_probe)
+        yield c
+
+
+def test_cloud_needs_the_chat_purpose(chats_only, fake):
+    fake.route("POST", "/v1/chat/completions", lambda req: (200, DONE))
+    chats_only.post("/admin/endpoints", json={"name": "OpenAI", "preset": "openai", "base_url": fake.url + "/v1", "upstream_key": "k" * 9})
+    chats_only.post("/admin/endpoints", json={"name": "lcpp", "base_url": fake.url + "/v1", "alias": "box"})
+    body = {"model": "openai/gpt-5.6", "messages": [{"role": "user", "content": "hi"}]}
+    r = chats_only.post("/v1/chat/completions", json=body)
+    assert r.status_code == 403 and r.json()["error"]["type"] == "cloud_not_allowed" and not chat_calls(fake)
+    r = chats_only.post("/v1/chat/completions", json=body, headers={"X-GAIFA-Purpose": "chat"})
+    assert r.status_code == 200 and len(chat_calls(fake)) == 1
+    r = chats_only.post("/v1/chat/completions", json={**body, "model": "box"})        # a local server needs nothing
+    assert r.status_code == 200
+
+
+def test_off_by_default(relay, fake):
+    fake.route("POST", "/v1/chat/completions", lambda req: (200, DONE))
+    relay.post("/admin/endpoints", json={"name": "OpenAI", "preset": "openai", "base_url": fake.url + "/v1", "upstream_key": "k" * 9})
+    assert relay.post("/v1/chat/completions", json={"model": "openai/gpt-5.6", "messages": [{"role": "user", "content": "hi"}]}).status_code == 200
+
+
+def test_requests_carry_the_group_and_cache_tokens(relay, fake):
+    done = {**DONE, "usage": {**DONE["usage"], "prompt_tokens_details": {"cached_tokens": 2}}}
+    fake.route("POST", "/v1/chat/completions", lambda req: (200, sse_events([(None, {"choices": [{"delta": {"content": "hi"}}]}),
+                                                                              (None, {"choices": [], "usage": done["usage"]})]) + [b"data: [DONE]\n\n"]))
+    relay.post("/admin/endpoints", json={"name": "OpenAI", "preset": "openai", "base_url": fake.url + "/v1", "upstream_key": "k" * 9})
+    relay.post("/admin/endpoints", json={"name": "lcpp", "base_url": fake.url + "/v1", "alias": "box"})
+    relay.post("/v1/chat/completions", json={"model": "openai/gpt-5.6", "stream": True, "messages": [{"role": "user", "content": "hi"}]})
+    relay.post("/v1/chat/completions", json={"model": "box", "stream": True, "messages": [{"role": "user", "content": "hi"}]})
+    import time
+    for _ in range(50):                       # the telemetry writer is a background task
+        rows = relay.get("/admin/stats/recent").json()["rows"]
+        if len([r for r in rows if r.get("grp")]) >= 2:
+            break
+        time.sleep(0.05)
+    cloud = relay.get("/admin/stats/recent", params={"group": "cloud"}).json()["rows"]
+    assert [r["grp"] for r in cloud] == ["cloud"] and cloud[0]["cached_tokens"] == 2
+    assert [r["grp"] for r in relay.get("/admin/stats/recent", params={"group": "local"}).json()["rows"]] == ["local"]
