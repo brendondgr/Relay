@@ -45,7 +45,9 @@ async def list_endpoints(request: Request):
 
 @router.post("/endpoints", response_model=EndpointOut, status_code=201)
 async def create_endpoint(request: Request, spec: EndpointCreate):
-    if not spec.base_url.startswith(("http://", "https://")):
+    if not spec.base_url and not spec.preset:
+        raise HTTPException(422, "base_url is required (or a preset: anthropic, openai, gemini)")
+    if spec.base_url and not spec.base_url.startswith(("http://", "https://")):
         raise HTTPException(422, "base_url must start with http:// or https://")
     try:
         row = request.app.state.router.create(spec)

@@ -24,10 +24,11 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 from app.core.logging import get_logger
 from app.db import Database
-from app.schemas import EndpointCreate, EndpointOut, EndpointPatch, RouterState
+from app.schemas import CLOUD_HOSTS, PRESETS, EndpointCreate, EndpointOut, EndpointPatch, RouterState
 from app.services.tunnel_sessions import parse_local_port, validate_command
 
 log = get_logger("router")
@@ -100,12 +101,26 @@ class LiveState:
 
 
 def _infer_kind(url: str, tunnel_id: str | None,
-                tunnel_command: str | None = None) -> str:
+                tunnel_command: str | None = None, protocol: str | None = None,
+                current: str | None = None) -> str:
     if tunnel_id or (tunnel_command or "").strip():
         return "remote_tunnel"
     if "127.0.0.1" in url or "localhost" in url:
         return "local"
+    host = urlsplit(url).hostname or ""
+    if protocol in ("anthropic", "gemini") or host in CLOUD_HOSTS or current == "cloud":
+        return "cloud"
     return "remote_direct"
+
+
+def alias_only(row: dict) -> bool:
+    """An endpoint a caller must name: another protocol (an agent server, a
+    provider's own API) or a cloud provider. Never `auto`, never failover."""
+    return (row.get("protocol") or "openai") != "openai" or row.get("kind") == "cloud"
+
+
+def key_hint(key: str | None) -> str | None:
+    return ("…" + key[-4:]) if key and len(key) >= 8 else ("…" if key else None)
 
 
 class Router:
@@ -277,12 +292,17 @@ class Router:
     # ---- CRUD --------------------------------------------------------------
     def create(self, spec: EndpointCreate) -> dict:
         eid = str(uuid.uuid4())
+        if spec.preset:
+            fill = PRESETS[spec.preset]
+            given = spec.model_dump(exclude_unset=True)
+            spec = spec.model_copy(update={k: v for k, v in fill.items() if k not in given or not given[k]}
+                                   | {"kind": spec.kind or "cloud"})
         tunnel_command = (spec.tunnel_command or "").strip() or None
         row = {
             "id": eid, "name": spec.name,
             "alias": self._validate_alias(spec.alias),
             "kind": spec.kind or _infer_kind(
-                spec.base_url, spec.tunnel_id, tunnel_command),
+                spec.base_url, spec.tunnel_id, tunnel_command, spec.protocol),
             "server_type": spec.server_type,
             "protocol": spec.protocol,
             "available_models": _models_json(
@@ -312,7 +332,7 @@ class Router:
         self.state[eid] = LiveState()
         # Only an OpenAI-protocol endpoint can become the default pin; an
         # alias-only protocol is never the fallback for `model: "auto"`.
-        if self.pinned_id is None and row["protocol"] == "openai":
+        if self.pinned_id is None and not alias_only(row):
             self.pinned_id = eid
             self._persist_router()
         log.info("endpoint created", extra={"data": {
@@ -345,7 +365,8 @@ class Router:
             changes["facts_override"] = _facts_json(changes["facts_override"])
         row.update(changes)
         row["kind"] = patch.kind or _infer_kind(
-            row["base_url"], row.get("tunnel_id"), row.get("tunnel_command"))
+            row["base_url"], row.get("tunnel_id"), row.get("tunnel_command"),
+            row.get("protocol"), row.get("kind"))
         sets = ", ".join(f"{k} = ?" for k in row if k != "id")
         self.db.execute(
             f"UPDATE endpoints SET {sets} WHERE id = ?",
@@ -539,7 +560,7 @@ class Router:
         rows = [
             r for r in self.endpoints.values()
             if r["enabled"] and r["id"] not in exclude
-            and (r.get("protocol") or "openai") == "openai"
+            and not alias_only(r)
             and self.state[r["id"]].health != "failed"
         ]
         rows.sort(key=lambda r: (-r["priority"], r["created_ts"] or 0))
@@ -553,7 +574,7 @@ class Router:
             pinned = self.endpoints.get(self.pinned_id)
             # Same alias-only rule as _eligible: pinning an agent server must
             # not silently redirect every `model: "auto"` request into it.
-            if pinned and (pinned.get("protocol") or "openai") != "openai":
+            if pinned and alias_only(pinned):
                 pinned = None
             if pinned and pinned["enabled"] and self.pinned_id not in exclude:
                 if self.state[self.pinned_id].health != "failed":
@@ -703,7 +724,8 @@ class Router:
             protocol=row.get("protocol") or "openai",
             available_models=self.available_models(eid),
             base_url=row["base_url"],
-            has_key=bool(row["upstream_key"]), tunnel_id=row["tunnel_id"],
+            has_key=bool(row["upstream_key"]), key_hint=key_hint(row["upstream_key"]),
+            tunnel_id=row["tunnel_id"],
             tunnel_command=row.get("tunnel_command"),
             tunnel_local_port=row.get("tunnel_local_port"),
             priority=row["priority"], weight=row["weight"],

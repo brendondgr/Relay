@@ -4,11 +4,21 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-EndpointKind = Literal["local", "remote_direct", "remote_tunnel"]
-ServerType = Literal["llama.cpp", "vLLM", "ollama", "openai", "opencode"]
+# "cloud": a paid provider's API (Anthropic, OpenAI, Gemini). Alias-only like the
+# non-OpenAI protocols: never the `auto` route or a failover target, never GAIFA's GPU slot.
+EndpointKind = Literal["local", "remote_direct", "remote_tunnel", "cloud"]
+ServerType = Literal["llama.cpp", "vLLM", "ollama", "openai", "opencode", "anthropic", "gemini"]
 # Wire protocol the upstream speaks. Dispatches services/adapters/; the only
 # field any backend code branches on to decide how to talk to a server.
-Protocol = Literal["openai", "opencode"]
+Protocol = Literal["openai", "opencode", "anthropic", "gemini"]
+# A provider's API, filled in by `preset` on create: protocol, URL, badge, alias.
+Preset = Literal["anthropic", "openai", "gemini"]
+PRESETS: dict[str, dict] = {
+    "anthropic": {"protocol": "anthropic", "base_url": "https://api.anthropic.com", "server_type": "anthropic", "alias": "claude"},
+    "openai": {"protocol": "openai", "base_url": "https://api.openai.com/v1", "server_type": "openai", "alias": "openai"},
+    "gemini": {"protocol": "gemini", "base_url": "https://generativelanguage.googleapis.com", "server_type": "gemini", "alias": "gemini"},
+}
+CLOUD_HOSTS = ("api.anthropic.com", "api.openai.com", "generativelanguage.googleapis.com")
 Health = Literal["healthy", "degraded", "failed", "unknown"]
 RouterPolicy = Literal["manual", "priority"]
 
@@ -45,7 +55,10 @@ class ModelFactsOut(BaseModel):
 # ---- endpoints -------------------------------------------------------
 class EndpointCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    base_url: str = Field(min_length=1)
+    # A provider's API in one field: fills protocol, base_url, server_type and
+    # the alias (each still overridable); its kind is "cloud".
+    preset: Preset | None = None
+    base_url: str = Field(default="", max_length=2000)
     alias: str | None = Field(default=None, max_length=64)
     kind: EndpointKind | None = None  # inferred from URL when omitted
     server_type: ServerType = "openai"
@@ -97,6 +110,7 @@ class EndpointOut(BaseModel):
     available_models: list[str] = []
     base_url: str
     has_key: bool
+    key_hint: str | None = None      # the key's last four characters; the key itself is never returned
     tunnel_id: str | None
     tunnel_command: str | None = None
     tunnel_local_port: int | None = None
