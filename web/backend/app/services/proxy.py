@@ -86,6 +86,9 @@ class ProxyService:
         self.http = http
         # services/model_facts.ModelFacts; None leaves every meta unknown.
         self.facts = facts
+        # services/discovery.Discovery (set by main): listed models, and what an
+        # adapter needs to know about one (its output cap, effort ladder).
+        self.discovery = None
         self.router = router
         self.telemetry = telemetry
         self.live = live
@@ -112,7 +115,8 @@ class ProxyService:
 
         if route == "models" and request.method == "GET":
             return JSONResponse(await models_catalog(
-                self.router, self.settings.current.auto_failover, self.facts))
+                self.router, self.settings.current.auto_failover, self.facts,
+                self.discovery))
 
         body_bytes = await self._read_body(request)
         if body_bytes is None:

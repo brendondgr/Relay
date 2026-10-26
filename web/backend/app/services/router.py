@@ -254,12 +254,14 @@ class Router:
             self, model: str | None) -> tuple[dict | None, str | None]:
         """Route an inbound ``model`` value to an endpoint.
 
-        Returns ``(endpoint, exact_model)``. Two ways to match, in order:
+        Returns ``(endpoint, exact_model)``. Three ways to match, in order:
 
         1. **Alias** — a routing name for the server itself. The model sent
            upstream is the endpoint's choice (``upstream_model``), so
            ``exact_model`` is None.
-        2. **Allowlist entry** — the caller named a real model the endpoint
+        2. **``<alias>/<model>``** — that server, and that exact model, which
+           goes upstream as given (a listed model, or any the server takes).
+        3. **Allowlist entry** — the caller named a real model the endpoint
            declares it serves. That id is forwarded verbatim and outranks the
            endpoint's ``model_override``; picking a specific model is the
            whole point of asking for it by name.
@@ -269,6 +271,13 @@ class Router:
         alias_row = self.resolve_alias(model)
         if alias_row is not None:
             return alias_row, None
+        # `<alias>/<model>` (GAIFA plan llm-servers 1.3): that server, that exact
+        # model. Aliases can't contain "/", so the first one splits it.
+        prefix, sep, rest = model.partition("/")
+        if sep and rest:
+            alias_row = self.resolve_alias(prefix)
+            if alias_row is not None:
+                return alias_row, rest
         wanted = model.strip().lower()
         for row in self.endpoints.values():
             for candidate in parse_models(row.get("available_models")):

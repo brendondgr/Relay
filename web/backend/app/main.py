@@ -99,6 +99,7 @@ async def lifespan(app: FastAPI):
         max_concurrency=cfg.max_concurrency,
         queue_limit=cfg.queue_limit, queue_timeout=cfg.queue_timeout,
         max_body_bytes=cfg.max_body_bytes, facts=app.state.facts)
+    app.state.proxy.discovery = app.state.discovery
     app.state.tunnels = TunnelManager(app.state.db, app.state.http)
     app.state.tunnel_sessions = TunnelSessionManager()
     await app.state.telemetry.start()
