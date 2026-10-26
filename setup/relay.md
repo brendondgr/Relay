@@ -28,6 +28,8 @@ The format is in [docs/mods.md §9](../../../docs/mods.md#9-setup-docs).
 
 The `relay` mod (port 4000) is the LLM Relay, formerly DashLLM: an OpenAI-compatible proxy with routing, SSH tunnels and usage analytics. It runs no model itself. Every chat model in GAIFA goes through it: the agent, the Auto judge and Chat call `http://127.0.0.1:4000/v1`, and the `lcpp` and `vllm` mods publish their running models to it. It has two parts: a FastAPI backend in `web/backend/.venv/`, and an Astro + React dashboard built once into `web/frontend/dist/`, which the backend serves at `/` (the mod's page in GAIFA).
 
+**Its own repository:** this folder is [brendondgr/Relay](https://github.com/brendondgr/Relay) (`main`), a git submodule of GAIFA. `gaifa setup relay` checks it out when the clone didn't (`git clone --recurse-submodules` does), and `gaifa repos update relay` brings in what's new (GAIFA's [mods.md §10](../../../docs/mods.md#10-mods-with-their-own-repository)).
+
 ## Tested with
 
 Read from this machine on 2026-10-21:
