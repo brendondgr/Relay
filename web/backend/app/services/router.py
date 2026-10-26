@@ -29,6 +29,7 @@ from urllib.parse import urlsplit
 from app.core.logging import get_logger
 from app.db import Database
 from app.schemas import CLOUD_HOSTS, PRESETS, EndpointCreate, EndpointOut, EndpointPatch, RouterState
+from app.services.discovery import listed_models
 from app.services.tunnel_sessions import parse_local_port, validate_command
 
 log = get_logger("router")
@@ -218,6 +219,22 @@ class Router:
                         f" {row['name']!r}")
         return list(seen.values())
 
+    def hidden_models(self, eid: str) -> list[str]:
+        row = self.endpoints.get(eid)
+        return parse_models(row.get("hidden_models")) if row else []
+
+    def set_hidden(self, eid: str, hidden: list[str] | None = None, hide_filter: bool | None = None) -> dict | None:
+        row = self.endpoints.get(eid)
+        if row is None:
+            return None
+        if hidden is not None:
+            row["hidden_models"] = json.dumps(sorted(set(hidden))) if hidden else None
+        if hide_filter is not None:
+            row["hide_filter"] = int(hide_filter)
+        self.db.execute("UPDATE endpoints SET hidden_models = ?, hide_filter = ? WHERE id = ?",
+                        (row.get("hidden_models"), row.get("hide_filter", 1), eid))
+        return row
+
     def available_models(self, eid: str) -> list[str]:
         """The endpoint's declared model allowlist (empty when unset)."""
         row = self.endpoints.get(eid)
@@ -316,6 +333,9 @@ class Router:
             "weight": spec.weight, "enabled": int(spec.enabled),
             "model_override": spec.model_override,
             "facts_override": _facts_json(spec.facts_override),
+            "list_models": None if spec.list_models is None else int(spec.list_models),
+            "hidden_models": None,
+            "hide_filter": 1,
             "created_ts": time.time(),
         }
         # Positional insert against an explicit column list: the order here
@@ -325,8 +345,9 @@ class Router:
             " protocol, available_models,"
             " base_url, upstream_key, tunnel_id, tunnel_command,"
             " tunnel_local_port, priority, weight, enabled,"
-            " model_override, facts_override, created_ts)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " model_override, facts_override, list_models, hidden_models,"
+            " hide_filter, created_ts)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             tuple(row.values()))
         self.endpoints[eid] = row
         self.state[eid] = LiveState()
@@ -363,6 +384,8 @@ class Router:
                                       exclude_id=eid))
         if "facts_override" in changes:
             changes["facts_override"] = _facts_json(changes["facts_override"])
+        if "list_models" in changes:
+            changes["list_models"] = int(changes["list_models"])
         row.update(changes)
         row["kind"] = patch.kind or _infer_kind(
             row["base_url"], row.get("tunnel_id"), row.get("tunnel_command"),
@@ -737,7 +760,8 @@ class Router:
             last_ok_ts=st.last_ok_ts, consecutive_fails=st.consecutive_fails,
             active=(row["id"] == self.pinned_id), share=round(share, 4),
             owner=row.get("owner"), external_key=row.get("external_key"),
-            meta=_meta(row.get("meta")))
+            meta=_meta(row.get("meta")), list_models=listed_models(row),
+            hidden_models=self.hidden_models(eid), hide_filter=bool(row.get("hide_filter", 1)))
 
     def list_out(self, shares: dict[str, float] | None = None) -> list[EndpointOut]:
         shares = shares or {}

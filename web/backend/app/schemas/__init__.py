@@ -78,6 +78,9 @@ class EndpointCreate(BaseModel):
     enabled: bool = True
     model_override: str | None = None  # model sent upstream for alias routes
     facts_override: ModelFactsOverride | None = None
+    # The catalog lists this endpoint's own models as `<alias>/<model>`
+    # (null: on for cloud endpoints and the anthropic/gemini protocols).
+    list_models: bool | None = None
 
 
 class EndpointPatch(BaseModel):
@@ -98,6 +101,7 @@ class EndpointPatch(BaseModel):
     model_override: str | None = None
     # Replaces the whole override; send {} to clear it.
     facts_override: ModelFactsOverride | None = None
+    list_models: bool | None = None
 
 
 class EndpointOut(BaseModel):
@@ -130,6 +134,15 @@ class EndpointOut(BaseModel):
     owner: str | None = None
     external_key: str | None = None
     meta: dict | None = None
+    list_models: bool = False
+    hidden_models: list[str] = []
+    hide_filter: bool = True
+
+
+class ModelsPatch(BaseModel):
+    """PATCH /admin/endpoints/{id}/models: which of its listed models the catalog leaves out."""
+    hidden: list[str] | None = Field(default=None, max_length=2000)
+    hide_filter: bool | None = None
 
 
 # ---- registrations ---------------------------------------------------

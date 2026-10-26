@@ -234,6 +234,15 @@ class Database:
         if "facts_override" not in cols:
             self._conn.execute(
                 "ALTER TABLE endpoints ADD COLUMN facts_override TEXT")
+        # Live model lists (services/discovery.py, GAIFA plan llm-servers 1.2):
+        # list_models NULL = the default (on for cloud), hidden_models a JSON
+        # array of ids left out of the catalog, hide_filter the non-chat filter.
+        if "list_models" not in cols:
+            self._conn.execute("ALTER TABLE endpoints ADD COLUMN list_models INTEGER")
+        if "hidden_models" not in cols:
+            self._conn.execute("ALTER TABLE endpoints ADD COLUMN hidden_models TEXT")
+        if "hide_filter" not in cols:
+            self._conn.execute("ALTER TABLE endpoints ADD COLUMN hide_filter INTEGER NOT NULL DEFAULT 1")
         self._conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_endpoints_external_key"
             " ON endpoints(external_key) WHERE external_key IS NOT NULL")

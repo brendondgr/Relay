@@ -27,6 +27,7 @@ from app.routes import (
     v1,
 )
 from app.services.health import HealthProber
+from app.services.discovery import Discovery
 from app.services.model_facts import ModelFacts
 from app.services.opencode_boot import discover_models, ensure_endpoint
 from app.services.proxy import ProxyService
@@ -90,6 +91,8 @@ async def lifespan(app: FastAPI):
     # Model facts ride the probe pool too: they are reads of the upstream's
     # own metadata, and must not queue behind proxied traffic either.
     app.state.facts = ModelFacts(app.state.router, app.state.probe_http)
+    # Live model lists (GAIFA plan llm-servers 1.2), on the probe pool too.
+    app.state.discovery = Discovery(app.state.router, app.state.probe_http)
     app.state.proxy = ProxyService(
         app.state.http, app.state.router, app.state.telemetry,
         app.state.live, app.state.settings,
@@ -110,6 +113,7 @@ async def lifespan(app: FastAPI):
                                      name="opencode-discovery")
                  if agent_id else None)
     task = asyncio.create_task(_housekeeping(app), name="housekeeping")
+    listing = asyncio.create_task(app.state.discovery.refresh_listed(), name="model-lists")
     log.info("relay started", extra={"data": {
         "version": __version__, "port": app.state.cfg.port,
         "db": str(app.state.cfg.db_path),
@@ -132,6 +136,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         task.cancel()
+        listing.cancel()
         await app.state.proxy.gpu.close()
         if discovery:
             discovery.cancel()

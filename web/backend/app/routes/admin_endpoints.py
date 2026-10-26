@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from app.core.logging import get_logger
 from app.schemas import (
     EndpointCreate,
+    ModelsPatch,
     EndpointOut,
     EndpointPatch,
     EndpointTestResult,
@@ -119,6 +120,25 @@ async def endpoint_facts(request: Request, eid: str, refresh: bool = False,
 # Manual connect/disconnect for tunnel-backed endpoints. Nothing connects on
 # its own; ssh runs in a PTY so prompts (host key, passphrase, password) are
 # surfaced to the UI and answered via /respond.
+
+@router.get("/endpoints/{eid}/models")
+async def endpoint_models(request: Request, eid: str, refresh: bool = False):
+    """The endpoint's own model list, read from it (cached 10 minutes; `refresh=1`
+    reads it again now). Never an error for an unreachable server or a rejected
+    key: `error` says why and `models` keeps the last good list."""
+    d = request.app.state.discovery
+    if eid not in request.app.state.router.endpoints:
+        raise HTTPException(404, "endpoint not found")
+    return d.view(eid, await d.listing(eid, refresh=refresh))
+
+
+@router.patch("/endpoints/{eid}/models")
+async def patch_endpoint_models(request: Request, eid: str, patch: ModelsPatch):
+    if request.app.state.router.set_hidden(eid, patch.hidden, patch.hide_filter) is None:
+        raise HTTPException(404, "endpoint not found")
+    d = request.app.state.discovery
+    return d.view(eid, await d.listing(eid))
+
 
 @router.get("/endpoints/tunnel-sessions",
             response_model=list[TunnelSessionStatus])
