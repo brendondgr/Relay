@@ -13,15 +13,18 @@ from app.services.adapters.base import (
     UpstreamSaturated,
     classify_httpx_error,
 )
+from app.services.adapters.anthropic import AnthropicAdapter
 from app.services.adapters.opencode import OpenCodeAdapter
 from app.services.adapters.passthrough import PassthroughAdapter
 
 PASSTHROUGH = PassthroughAdapter()
 OPENCODE = OpenCodeAdapter()
+ANTHROPIC = AnthropicAdapter()
 
 _BY_PROTOCOL: dict[str, UpstreamAdapter] = {
     "openai": PASSTHROUGH,
     "opencode": OPENCODE,
+    "anthropic": ANTHROPIC,
 }
 
 
