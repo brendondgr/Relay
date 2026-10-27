@@ -135,7 +135,10 @@ def make_opencode_upstream() -> tuple[FastAPI, dict]:
                     "name": "Hy3 (free)", "tool_call": True, "reasoning": True,
                     "limit": {"context": 128000, "output": 8192},
                     "modalities": {"input": ["text", "image"], "output": ["text"]}},
-                           "mimo-v2.5-free": {}},
+                           "mimo-v2.5-free": {
+                    "name": "MiMo", "limit": {"context": 262144, "output": 32000},
+                    "capabilities": {"toolcall": True, "reasoning": False, "attachment": False,
+                                     "input": {"text": True, "image": False}}}},
             }, {
                 "id": "openai", "name": "OpenAI", "models": {"gpt-5": {}},
             }],

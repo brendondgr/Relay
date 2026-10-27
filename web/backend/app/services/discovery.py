@@ -192,11 +192,16 @@ class Discovery:
         out = []
         for mid, info in catalog_entries(payload if isinstance(payload, dict) else {}):
             limit = info.get("limit") if isinstance(info.get("limit"), dict) else {}
-            inputs = (info.get("modalities") or {}).get("input") if isinstance(info.get("modalities"), dict) else None
+            caps = info.get("capabilities") if isinstance(info.get("capabilities"), dict) else None
+            if caps is not None:      # the server's own model shape: capabilities.{toolcall, reasoning, input.image}
+                tools, reasoning = caps.get("toolcall"), caps.get("reasoning")
+                vision = (caps.get("input") or {}).get("image") if isinstance(caps.get("input"), dict) else caps.get("attachment")
+            else:                     # models.dev's shape: tool_call, reasoning, modalities.input
+                inputs = (info.get("modalities") or {}).get("input") if isinstance(info.get("modalities"), dict) else None
+                tools, reasoning = info.get("tool_call"), info.get("reasoning")
+                vision = ("image" in inputs) if isinstance(inputs, list) else info.get("attachment")
             out.append(Listed(id=mid, display_name=info.get("name"), context_length=limit.get("context") or None,
-                              max_output=limit.get("output") or None, tools=info.get("tool_call"),
-                              vision=("image" in inputs) if isinstance(inputs, list) else info.get("attachment"),
-                              reasoning=info.get("reasoning")))
+                              max_output=limit.get("output") or None, tools=tools, vision=vision, reasoning=reasoning))
         return out
 
     async def _list(self, row: dict) -> list[Listed]:

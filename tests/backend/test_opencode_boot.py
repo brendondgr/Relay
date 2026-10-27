@@ -159,6 +159,8 @@ async def test_models_are_read_live_from_opencode(opencode_env, tmp_path):
     hy3 = body["models"][0]
     assert (hy3["display_name"], hy3["context_length"], hy3["max_output"], hy3["tools"], hy3["vision"], hy3["reasoning"]) == \
         ("Hy3 (free)", 128000, 8192, True, True, True)
+    mimo = body["models"][1]                       # the server's own shape: capabilities.{toolcall, reasoning, input}
+    assert (mimo["context_length"], mimo["tools"], mimo["vision"], mimo["reasoning"]) == (262144, True, False, False)
 
     data = {m["id"]: m for m in client.get("/v1/models").json()["data"]}
     e = data["agent/opencode/hy3-free"]
