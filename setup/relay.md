@@ -80,9 +80,30 @@ On the machine these docs were written on, for example, there is also `skynet`: 
 
 The relay runs no model and downloads none, so it has no suggestions. Which models it lists is up to you: any OpenAI-compatible server works, local or remote. For local ones, pick models in [llama.cpp](../../lcpp/setup/llama-cpp.md) (any GGUF) or [vLLM](../../vllm/setup/vllm.md) (Hugging Face repos), and they appear here while they run; for hosted ones, add an endpoint (below) or use [OpenCode](../../opencode/setup/opencode.md)'s free models. Each model is listed under its alias, the name clients send as `model`.
 
+### Adding Claude, OpenAI or Gemini
+
+The quickest way to a cloud model: **Settings → LLMs → Add a server** in GAIFA. Pick **Anthropic (Claude)**, **OpenAI** or **Google Gemini**, paste your key, and **Add server**. The relay fills in the URL and a short name (`claude`, `openai`, `gemini`), reads the provider's model list with your key (never a hardcoded list; a rejected key shows its error on the server's card), and lists each model as `<short name>/<model>`, for example `claude/claude-opus-5-5`, in the Chat page's model menu under **Cloud**. **Models** on the card hides the ones you don't want in the menu.
+
+Cloud models answer **chats only**: the relay refuses a request to them that doesn't say it's a chat (`RELAY_CLOUD_REQUIRES_PURPOSE=1`, set by GAIFA), so the Auto judge, page screening and other background work never reach a paid provider. Every chat turn on them is billed by the provider.
+
+With the API (read the key without echoing it):
+
+```bash
+read -rs KEY
+```
+
+```bash
+curl -s -X POST http://127.0.0.1:4000/admin/endpoints -H 'content-type: application/json' \
+  -d '{"name": "Claude", "preset": "anthropic", "upstream_key": "'"$KEY"'"}'
+```
+
+Expect `201` with `"kind": "cloud"`, `"has_key": true` and `"key_hint"` (the key's last four characters; the key itself is never returned). `preset` is `anthropic`, `openai` or `gemini`. Then `curl -s http://127.0.0.1:4000/admin/endpoints/<id>/models` lists what the key can use. How each provider is translated: `docs/cloud.md`.
+
 ### Adding a hosted provider
 
-With no local LLM (or no GPU), a hosted API gives Chat and the agent a model. The relay speaks two upstream protocols (`protocol` on an endpoint, the only field it dispatches on): **`openai`**, any OpenAI-compatible server (llama.cpp, vLLM, Ollama, or a hosted API such as OpenAI or OpenRouter), and **`opencode`**, the OpenCode agent server, which the relay adds by itself (above). A hosted provider is an `openai` endpoint:
+Any other OpenAI-compatible API (OpenRouter, a hosted vLLM):
+
+With no local LLM (or no GPU), a hosted API gives Chat and the agent a model. `protocol` on an endpoint is the only field the relay dispatches on: **`anthropic`** and **`gemini`** (the presets above), **`openai`**, any OpenAI-compatible server (llama.cpp, vLLM, Ollama, or a hosted API such as OpenAI or OpenRouter), and **`opencode`**, the OpenCode agent server, which the relay adds by itself (above). A hosted provider is an `openai` endpoint:
 
 | Field on the page | API field | Value |
 |---|---|---|
