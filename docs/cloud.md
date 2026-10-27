@@ -31,6 +31,7 @@ failover target, and never GAIFA's GPU slot. A caller names it.
 | `anthropic` | the `anthropic` SDK's `models.list()` | context window, output cap, image input, thinking (and which kind), the effort ladder; retired models left out |
 | `gemini` | the `google-genai` SDK's `models.list()` | only models that `generateContent`, the `models/` prefix stripped, input/output limits, thinking |
 | `openai` | `GET {base}/models` | ids only (vLLM adds `max_model_len`) |
+| `opencode` | OpenCode's `GET /config/providers` (Basic auth) | free models only, as `<provider>/<model>`; window, output cap, tools, images, thinking (docs/opencode.md) |
 
 Lists are cached ten minutes and refreshed at start and on demand. A failure
 keeps the last good list and says why (`HTTP 401: key rejected — …`); an
@@ -42,11 +43,13 @@ are hidden by a filter you can turn off; any model can be hidden by hand
 ## Naming a model: `<alias>/<model>`
 
 `GET /v1/models` lists every visible model of a listed endpoint (cloud
-endpoints, and any with `list_models`) as `<alias>/<model>`, e.g.
+endpoints, OpenCode, and any with `list_models`) as `<alias>/<model>`, e.g.
 `claude/claude-opus-5-5`, with the facts the provider reported in `meta` and
 `relay.group` (`local`, `remote`, `cloud`, `agent`). Sending that id as `model`
 reaches that endpoint with that exact model. Aliases, allowlisted ids and
-`auto` work as before; an alias owns its namespace.
+`auto` work as before; an alias owns its namespace. Each id is listed once:
+an endpoint whose alias is also its model's id (as lcpp names them) has one
+entry.
 
 ## What gets translated
 

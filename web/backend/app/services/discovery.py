@@ -9,7 +9,10 @@ Never a hardcoded list. Each protocol asks its own way:
   ``models/`` prefix stripped, only models that ``generateContent``, with their
   input/output limits and whether they think.
 - **openai** — ``GET {base}/models``: ids and nothing else (OpenAI says nothing
-  more). A cloud OpenAI list mixes chat with embedding, speech, image and
+  more).
+- **opencode** — OpenCode's own ``GET /config/providers`` (Basic auth): the
+  free models only, as ``<provider>/<model>``, with the window, tools, images
+  and thinking OpenCode reports. Listed as ``<alias>/<provider>/<model>``. A cloud OpenAI list mixes chat with embedding, speech, image and
   moderation models, so a *kind* filter hides ids naming those (a rule about
   kinds, not a list of names; ``hide_filter`` turns it off).
 
@@ -70,7 +73,7 @@ def listed_models(row: dict) -> bool:
     """Whether the catalog lists this endpoint's models one by one (`<alias>/<model>`)."""
     flag = row.get("list_models")
     if flag is None:
-        return row.get("kind") == "cloud" or (row.get("protocol") or "openai") in ("anthropic", "gemini")
+        return row.get("kind") == "cloud" or (row.get("protocol") or "openai") in ("anthropic", "gemini", "opencode")
     return bool(flag)
 
 
@@ -173,6 +176,29 @@ class Discovery:
             out.append(Listed(id=mid, context_length=ctx if isinstance(ctx, int) else None, source="server"))
         return out
 
+    async def _list_opencode(self, row: dict) -> list[Listed]:
+        from app.services.adapters.opencode import _basic_auth, catalog_entries
+        try:
+            r = await self.http.get(row["base_url"].rstrip("/") + "/config/providers", headers=_basic_auth(row.get("upstream_key")),
+                                    timeout=httpx.Timeout(15.0, connect=2.0))
+        except httpx.HTTPError as e:
+            raise DiscoveryError(f"{type(e).__name__}: {e}") from e
+        if r.status_code != 200:
+            raise DiscoveryError(_status_text(r.status_code, r.text[:200]))
+        try:
+            payload = r.json()
+        except ValueError as e:
+            raise DiscoveryError("the provider list isn't JSON") from e
+        out = []
+        for mid, info in catalog_entries(payload if isinstance(payload, dict) else {}):
+            limit = info.get("limit") if isinstance(info.get("limit"), dict) else {}
+            inputs = (info.get("modalities") or {}).get("input") if isinstance(info.get("modalities"), dict) else None
+            out.append(Listed(id=mid, display_name=info.get("name"), context_length=limit.get("context") or None,
+                              max_output=limit.get("output") or None, tools=info.get("tool_call"),
+                              vision=("image" in inputs) if isinstance(inputs, list) else info.get("attachment"),
+                              reasoning=info.get("reasoning")))
+        return out
+
     async def _list(self, row: dict) -> list[Listed]:
         protocol = row.get("protocol") or "openai"
         if protocol == "anthropic":
@@ -181,6 +207,8 @@ class Discovery:
             return await self._list_gemini(row)
         if protocol == "openai":
             return await self._list_openai(row)
+        if protocol == "opencode":
+            return await self._list_opencode(row)
         raise DiscoveryError(f"{protocol} endpoints don't list models here")
 
     # ---- the cache ---------------------------------------------------------

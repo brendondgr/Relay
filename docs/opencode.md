@@ -148,10 +148,16 @@ was typed into an endpoint's allowlist or set as its `model_override`.
 Discovery publishes what it finds as the endpoint's **available models** list,
 which is what makes each one individually addressable:
 
-- `GET /v1/models` advertises every free id alongside the `agent` alias, so a
-  client's model picker shows them.
-- `"model": "opencode/hy3-free"` routes to this endpoint and forwards
-  **exactly** that model — the list outranks `model_override`.
+- `GET /v1/models` lists every free model under the alias, as
+  `agent/opencode/hy3-free`, read live from `GET /config/providers` (cached
+  ten minutes, `GET /admin/endpoints/{id}/models?refresh=1` asks again) with
+  the window, tools, images and thinking OpenCode reports (`relay.group` is
+  `agent`). A server that stops answering keeps its last list, with the error.
+- `"model": "agent/opencode/hy3-free"` routes to this endpoint and forwards
+  exactly `opencode/hy3-free`.
+- `"model": "opencode/hy3-free"`, the older form, still routes and forwards
+  **exactly** that model (the list outranks `model_override`); it is no
+  longer listed a second time.
 - `"model": "agent"` uses the endpoint's default: `model_override` if it is
   free, otherwise the first discovered free model. The alias never falls
   through to OpenCode's *own* default, which is normally a paid one.

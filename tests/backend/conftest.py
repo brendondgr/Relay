@@ -96,4 +96,5 @@ def opencode_env(cfg, oc_cfg):
         app.state.proxy.http = fake
         app.state.prober.http = fake
         app.state.facts.http = fake
+        app.state.discovery.http = fake
         yield c, app, oc_calls

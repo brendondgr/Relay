@@ -90,3 +90,10 @@ def test_a_request_to_alias_slash_model_goes_upstream_as_that_model(relay, fake)
     r = relay.post("/v1/chat/completions", json={"model": "box/m2", "messages": [{"role": "user", "content": "hi"}]})
     assert r.status_code == 200, r.text
     assert fake.calls[-1].json["model"] == "m2"
+
+
+def test_an_alias_that_is_also_its_model_id_is_listed_once(relay):
+    """lcpp names an endpoint after its model (alias and allowlist both `smollm2`): one entry, not two."""
+    make(relay, name="smollm2-7071", base_url="http://127.0.0.1:9/v1", alias="smollm2", available_models=["smollm2", "smollm2-q8"])
+    ids = [m["id"] for m in relay.get("/v1/models").json()["data"]]
+    assert ids.count("smollm2") == 1 and ids.count("smollm2-q8") == 1

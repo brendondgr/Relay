@@ -55,18 +55,27 @@ async def models_catalog(router, auto_failover: bool, facts=None, discovery=None
     pairs: list[tuple[dict | None, str | None]] = [
         (auto_row,
          router.upstream_model(auto_row["id"]) if auto_row else None)]
+    seen = {"auto"}
     for row in router.endpoints.values():
         if not row["enabled"]:
             continue
         st = router.state.get(row["id"])
         health = st.health if st else "unknown"
-        if row.get("alias"):
+        if row.get("alias") and row["alias"] not in seen:
             upstream = router.upstream_model(row["id"])
             data.append(_entry(row["alias"], created, row, health, upstream))
             pairs.append((row, upstream))
+            seen.add(row["alias"])
+        # An OpenCode endpoint's models are listed as `<alias>/<provider>/<model>`
+        # below; its allowlisted `<provider>/<model>` ids still route, unlisted.
+        if (row.get("protocol") or "openai") == "opencode" and discovery is not None and listed_models(row):
+            continue
         for model in router.available_models(row["id"]):
+            if model in seen:      # an alias that is also its model's id: one entry
+                continue
             data.append(_entry(model, created, row, health, model))
             pairs.append((row, model))
+            seen.add(model)
 
     # An alias owns its `<alias>/…` namespace: another endpoint's allowlisted id
     # under it (OpenCode's `openai/gpt-x` beside an endpoint aliased `openai`)

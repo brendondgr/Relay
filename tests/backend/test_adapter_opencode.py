@@ -309,16 +309,20 @@ def test_allowlist_narrows_the_endpoint_default(opencode_env):
     assert "opencode/hy3-free" in st.discovered
 
 
-def test_models_catalog_advertises_allowlist(opencode_env):
+def test_models_catalog_lists_the_live_catalog_under_the_alias(opencode_env):
+    """The models come from OpenCode's own catalog as `<alias>/<provider>/<model>`
+    (GAIFA plan llm-servers 6.1); the allowlisted `<provider>/<model>` ids route
+    but aren't listed a second time."""
     client, app, calls = opencode_env
     _register_opencode(client, models=["opencode/hy3-free",
                                        "opencode/mimo-v2.5-free"])
     data = client.get("/v1/models").json()["data"]
     by_id = {m["id"]: m for m in data}
     assert "auto" in by_id and "agent" in by_id
-    assert by_id["opencode/hy3-free"]["owned_by"] == "relay:agent-box"
-    assert by_id["opencode/hy3-free"]["relay"]["protocol"] == "opencode"
+    assert by_id["agent/opencode/hy3-free"]["owned_by"] == "relay:agent-box"
+    assert by_id["agent/opencode/hy3-free"]["relay"]["protocol"] == "opencode"
     assert by_id["agent"]["relay"]["endpoint"] == "agent-box"
+    assert "opencode/hy3-free" not in by_id
 
 
 # ---- free models only ----------------------------------------------------
@@ -371,7 +375,7 @@ def test_paid_models_are_absent_from_the_models_catalog(opencode_env):
     client, app, calls = opencode_env
     _register_opencode(client, models=["opencode/hy3-free"])
     ids = {m["id"] for m in client.get("/v1/models").json()["data"]}
-    assert "opencode/hy3-free" in ids
+    assert "agent/opencode/hy3-free" in ids
     assert not any("opus" in i or "gpt-5" in i for i in ids)
 
 

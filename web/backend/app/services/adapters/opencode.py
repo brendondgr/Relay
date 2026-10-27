@@ -153,14 +153,20 @@ def is_free_model(model: str | None) -> bool:
 
 
 def catalog_models(payload: dict, free_only: bool = True) -> list[str]:
-    """``GET /config/providers`` -> ``["opencode/hy3-free", ...]``.
+    """``GET /config/providers`` -> ``["opencode/hy3-free", ...]``."""
+    return [mid for mid, _ in catalog_entries(payload, free_only)]
+
+
+def catalog_entries(payload: dict, free_only: bool = True) -> list[tuple[str, dict]]:
+    """``GET /config/providers`` -> ``[("opencode/hy3-free", {its entry}), ...]``.
 
     ``providers[].models`` is a map keyed by model id in the current server;
     a list is accepted too so a shape change doesn't blank the catalog.
     Paid models are dropped here rather than at the door, so they never reach
-    the router, ``/v1/models``, or the dashboard in the first place.
+    the router, ``/v1/models``, or the dashboard in the first place. The entry
+    carries what OpenCode knows of the model (``limit``, ``tool_call``, …).
     """
-    out: list[str] = []
+    out: list[tuple[str, dict]] = []
     for provider in payload.get("providers") or []:
         if not isinstance(provider, dict):
             continue
@@ -169,16 +175,16 @@ def catalog_models(payload: dict, free_only: bool = True) -> list[str]:
             continue
         models = provider.get("models")
         if isinstance(models, dict):
-            ids = list(models.keys())
+            items = [(k, v if isinstance(v, dict) else {}) for k, v in models.items()]
         elif isinstance(models, list):
-            ids = [m.get("id") for m in models
-                   if isinstance(m, dict) and m.get("id")]
+            items = [(m.get("id"), m) for m in models
+                     if isinstance(m, dict) and m.get("id")]
         else:
-            ids = []
-        out.extend(f"{pid}/{mid}" for mid in ids if mid)
+            items = []
+        out.extend((f"{pid}/{mid}", info) for mid, info in items if mid)
 
     if free_only:
-        out = [m for m in out if is_free_model(m)]
+        out = [e for e in out if is_free_model(e[0])]
 
     # Surface the server's configured default first: relay treats models[0] as
     # the endpoint's default model. A paid default (OpenCode's usually is) has
@@ -187,9 +193,10 @@ def catalog_models(payload: dict, free_only: bool = True) -> list[str]:
     if isinstance(default, dict):
         for pid, mid in default.items():
             wanted = f"{pid}/{mid}"
-            if wanted in out:
-                out.remove(wanted)
-                out.insert(0, wanted)
+            hit = next((e for e in out if e[0] == wanted), None)
+            if hit is not None:
+                out.remove(hit)
+                out.insert(0, hit)
             break
     return out
 

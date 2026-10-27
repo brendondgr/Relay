@@ -131,7 +131,10 @@ def make_opencode_upstream() -> tuple[FastAPI, dict]:
         return {
             "providers": [{
                 "id": "opencode", "name": "OpenCode Zen",
-                "models": {"claude-opus-5": {}, "hy3-free": {},
+                "models": {"claude-opus-5": {}, "hy3-free": {
+                    "name": "Hy3 (free)", "tool_call": True, "reasoning": True,
+                    "limit": {"context": 128000, "output": 8192},
+                    "modalities": {"input": ["text", "image"], "output": ["text"]}},
                            "mimo-v2.5-free": {}},
             }, {
                 "id": "openai", "name": "OpenAI", "models": {"gpt-5": {}},

@@ -95,7 +95,8 @@ async def test_discovered_models_become_addressable(opencode_env, tmp_path):
     await discover_models(app, eid)
 
     ids = {m["id"] for m in client.get("/v1/models").json()["data"]}
-    assert {"agent", "opencode/hy3-free", "opencode/mimo-v2.5-free"} <= ids
+    assert {"agent", "agent/opencode/hy3-free", "agent/opencode/mimo-v2.5-free"} <= ids
+    assert "opencode/hy3-free" not in ids          # listed once, under the alias; the old id still routes:
 
     r = client.post("/v1/chat/completions", json={
         "model": "opencode/mimo-v2.5-free",
@@ -143,3 +144,42 @@ def test_proxy_snippets_get_a_model_that_actually_routes(opencode_env, tmp_path)
         "name": "box", "base_url": "http://good/v1", "protocol": "openai",
         "server_type": "llama.cpp"})
     assert client.get("/admin/proxy").json()["example_model"] == "auto"
+
+
+async def test_models_are_read_live_from_opencode(opencode_env, tmp_path):
+    """GAIFA plan llm-servers 6.1: the list comes from OpenCode's own catalog
+    each time it's read (free models only, with what OpenCode knows of them),
+    not from the allowlist written at boot, and `agent/<provider>/<model>` routes."""
+    client, app, calls = opencode_env
+    _configure(app, tmp_path)
+    eid = ensure_endpoint(app)                     # no discover_models: nothing allowlisted yet
+    body = client.get(f"/admin/endpoints/{eid}/models?refresh=1").json()
+    assert body["error"] is None
+    assert [m["id"] for m in body["models"]] == ["opencode/hy3-free", "opencode/mimo-v2.5-free"]
+    hy3 = body["models"][0]
+    assert (hy3["display_name"], hy3["context_length"], hy3["max_output"], hy3["tools"], hy3["vision"], hy3["reasoning"]) == \
+        ("Hy3 (free)", 128000, 8192, True, True, True)
+
+    data = {m["id"]: m for m in client.get("/v1/models").json()["data"]}
+    e = data["agent/opencode/hy3-free"]
+    assert e["relay"]["group"] == "agent" and e["relay"]["upstream_model"] == "opencode/hy3-free"
+    assert e["meta"]["context_length"] == 128000
+    assert not any("claude-opus-5" in k or "gpt-5" in k for k in data)   # paid: never listed
+
+    await app.state.prober.probe_and_report(eid)    # the adapter's free list (its refusal rule)
+    r = client.post("/v1/chat/completions", json={
+        "model": "agent/opencode/hy3-free", "messages": [{"role": "user", "content": "hi"}]})
+    assert r.status_code == 200, r.text
+    assert calls["last_message"]["model"] == {"providerID": "opencode", "modelID": "hy3-free"}
+
+
+async def test_an_unreachable_opencode_keeps_its_last_list(opencode_env, tmp_path, monkeypatch):
+    client, app, calls = opencode_env
+    _configure(app, tmp_path)
+    eid = ensure_endpoint(app)
+    assert len(client.get(f"/admin/endpoints/{eid}/models?refresh=1").json()["models"]) == 2
+    app.state.router.endpoints[eid]["base_url"] = "http://127.0.0.1:9"   # nothing listens there
+    import httpx
+    app.state.discovery.http = httpx.AsyncClient(timeout=2.0)
+    body = client.get(f"/admin/endpoints/{eid}/models?refresh=1").json()
+    assert body["error"] and len(body["models"]) == 2
